@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import Button from '@/components/button.vue';
+
 </script>
 
 <template>
-<Button>123</Button>
+<button>
+    <slot />
+</button>
 </template>
 
 <style scoped>
