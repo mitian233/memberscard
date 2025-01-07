@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import Button from '@/components/button.vue';
+import Memberscard from '@/components/memberscard.vue';
 </script>
 
 <template>
-<Button>123</Button>
+<Memberscard />
 </template>
 
 <style scoped>

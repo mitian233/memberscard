@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="_图层_1" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 840 560">
+  <defs>
+    <style>
+      .st0 {
+        fill: #fff;
+      }
+
+      .st1 {
+        fill: url(#_未命名的渐变_52);
+      }
+    </style>
+    <linearGradient id="_未命名的渐变_52" data-name="未命名的渐变 52" x1="11.4" y1="70.6" x2="829.5" y2="70.6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#90da88"/>
+      <stop offset=".2" stop-color="#7777ad"/>
+      <stop offset=".5" stop-color="#85b5d9"/>
+      <stop offset=".8" stop-color="#f9dc93"/>
+      <stop offset="1" stop-color="#f09998"/>
+    </linearGradient>
+  </defs>
+  <rect class="st1" width="840" height="141.1"/>
+  <rect class="st0" x=".5" y="122.5" width="839.5" height="11.6"/>
+</svg>
