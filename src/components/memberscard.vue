@@ -76,6 +76,7 @@ onMounted(() => {
         AvatarImgObj.value = img;
     };
     window.addEventListener('resize', handleResize);
+    handleResize();
 });
 
 onBeforeUnmount(() => {
