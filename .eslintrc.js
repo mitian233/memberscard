@@ -17,22 +17,25 @@ module.exports = {
     },
     rules: {
         'vue/html-indent': ['error', 4],
-        'vue/max-attributes-per-line': ['error', {
-            'singleline': 3,
-            'multiline': {
-                'max': 1,
-                'allowFirstLine': false
+        'vue/max-attributes-per-line': [
+            'error',
+            {
+                singleline: 3,
+                multiline: {
+                    max: 1,
+                    allowFirstLine: false
+                }
             }
-        }],
+        ],
         'vue/singleline-html-element-content-newline': 'off',
         'vue/multiline-html-element-content-newline': 'off',
         'vue/name-property-casing': ['error', 'PascalCase'],
         'vue/no-v-html': 'off',
         '@typescript-eslint/no-explicit-any': 'off',
         '@typescript-eslint/explicit-module-boundary-types': 'off',
-        'semi': ['error', 'always'],
-        'quotes': ['error', 'single'],
-        'indent': ['error', 4],
+        semi: ['error', 'always'],
+        quotes: ['error', 'single'],
+        indent: ['error', 4],
         'comma-dangle': ['error', 'never']
     }
 };
