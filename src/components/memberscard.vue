@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, onBeforeUnmount } from 'vue';
 import MembersCardBg from '@/assets/memberscard_bg.svg';
 import RingLogo from '@/assets/ring_logo.svg';
 import AvatarBg from '@/assets/avatar_bg.jpg';
@@ -8,6 +8,13 @@ const stageSize = {
     width: 960,
     height: 640
 };
+
+const stageConfig = reactive({
+    width: 960,
+    height: 640,
+    scaleX: 1,
+    scaleY: 1
+});
 
 const MCBgImageObj = new Image();
 MCBgImageObj.src = MembersCardBg;
@@ -49,7 +56,18 @@ const handleFileChange = (e: Event) => {
     reader.readAsDataURL(file);
 };
 
-const handleResize = (e: UIEvent) => {};
+const handleResize = () => {
+    //padding 20px
+    const width =
+        document.getElementsByClassName('mcard')[0].clientWidth - 40 < stageSize.width
+            ? document.getElementsByClassName('mcard')[0].clientWidth - 40
+            : stageSize.width;
+    const scaleX = width / stageSize.width > 1 ? 1 : width / stageSize.width;
+    stageConfig.scaleX = scaleX;
+    stageConfig.scaleY = scaleX;
+    stageConfig.width = stageSize.width * stageConfig.scaleX;
+    stageConfig.height = stageSize.height * stageConfig.scaleY;
+};
 
 onMounted(() => {
     const img = new Image();
@@ -59,13 +77,19 @@ onMounted(() => {
     };
     window.addEventListener('resize', handleResize);
 });
+
+onBeforeUnmount(() => {
+    window.removeEventListener('resize', handleResize);
+});
 </script>
 
 <template>
     <div class="container mx-auto">
-        <div class="w-full overflow-auto">
-            <div class="w-fit overflow-hidden bg-black p-5">
-                <v-stage :config="stageSize">
+        <div class="w-full overflow-hidden">
+            <div
+                class="mcard w-full h-full max-w-[1000px] max-h-[680px] overflow-hidden bg-black p-5"
+            >
+                <v-stage :config="stageConfig">
                     <v-layer>
                         <v-rect
                             :config="{
