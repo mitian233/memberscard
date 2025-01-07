@@ -3,12 +3,6 @@ import { ref, reactive, onMounted, computed } from 'vue';
 import MembersCardBg from '@/assets/memberscard_bg.svg';
 import RingLogo from '@/assets/ring_logo.svg';
 import AvatarBg from '@/assets/avatar_bg.jpg';
-import demoAvatar from '@/assets/getImg.png';
-import Konva from 'konva';
-import { type Context } from 'konva/lib/Context';
-import { type Shape } from 'konva/lib/Shape';
-import type { space } from 'postcss/lib/list';
-import type { Rect } from 'konva/lib/shapes/Rect';
 
 const stageSize = {
     width: 960,
@@ -24,7 +18,7 @@ AvatarBgObj.src = AvatarBg;
 const AvatarImgObj = ref<HTMLImageElement>(new Image());
 
 const AvatarImgOffsetStr = reactive({
-    x: "0",
+    x: "282",
     y: "0"
 })
 const AvatarImgOffset = computed(() => {
@@ -33,7 +27,7 @@ const AvatarImgOffset = computed(() => {
         y: Number(AvatarImgOffsetStr.y)
     }
 })
-const AvatarScaleStr = ref<string>("100");
+const AvatarScaleStr = ref<string>("58");
 const AvatarScale = computed(() => Number(AvatarScaleStr.value) / 100);
 const bandName = ref<string>('Morfonica');
 const name = ref<string>('二葉 つくし');
@@ -55,18 +49,18 @@ const handleFileChange = (e: Event) => {
     reader.readAsDataURL(file);
 }
 
-const handleDragMove = () => {
-    console.debug('dragging');
-}
-
 onMounted(() => {
-    AvatarImgObj.value.src = demoAvatar;
+    const img = new Image();
+    img.src = '/demo.png';
+    img.onload = () => {
+        AvatarImgObj.value = img;
+    }
 })
 </script>
 
 <template>
     <div class="w-full overflow-auto">
-        <div class="w-fit overflow-hidden rounded-xl">
+        <div class="w-fit overflow-hidden bg-black p-5">
             <v-stage :config="stageSize">
                 <v-layer>
                     <v-rect :config="{
@@ -74,12 +68,14 @@ onMounted(() => {
                         y: 0,
                         width: stageSize.width,
                         height: stageSize.height,
+                        cornerRadius: 40,
                         fill: '#fff',
                     }"></v-rect>
                     <v-image :config="{
                         x: 0,
                         y: 0,
                         image: MCBgImageObj,
+                        cornerRadius: 40,
                         ...stageSize
                     }"></v-image>
                     <v-image :config="{
@@ -97,17 +93,16 @@ onMounted(() => {
                         height: 550,
                         cornerRadius: 25
                     }">
-                        <v-rect
-                            :config="{
-                                x: 0,
-                                y: 0,
-                                width: 360,
-                                height: 550,
-                                cornerRadius: 25,
-                                fillPatternImage: AvatarImgObj,
-                                fillPatternOffset: AvatarImgOffset,
-                                fillPatternScale: { x: AvatarScale, y: AvatarScale },
-                            }"></v-rect>
+                        <v-rect :config="{
+                            x: 0,
+                            y: 0,
+                            width: 360,
+                            height: 550,
+                            cornerRadius: 25,
+                            fillPatternImage: AvatarImgObj,
+                            fillPatternOffset: AvatarImgOffset,
+                            fillPatternScale: { x: AvatarScale, y: AvatarScale },
+                        }"></v-rect>
                     </v-group>
                     <v-text :config="{
                         text: `MEMBER\'S CARD`,
@@ -117,15 +112,15 @@ onMounted(() => {
                         fill: '#fff',
                         fontStyle: '',
                         letterSpacing: 5,
-                        fontFamily: 'sans',
+                        fontFamily: 'Noto Sans JP',
                     }">
                     </v-text>
                     <v-image :config="{
                         x: 430,
                         y: 190,
                         image: RingLogoObj,
-                        width: RingLogoObj.width / 2.5,
-                        height: RingLogoObj.height / 2.5
+                        width: 300 / 2.5,
+                        height: 124 / 2.5
                     }"></v-image>
                     <v-group :config="{
                         x: 430,
@@ -144,6 +139,7 @@ onMounted(() => {
                             y: 5,
                             fontStyle: 'bold',
                             text: 'NAME',
+                            fontFamily: 'Poppins',
                             fontSize: 15,
                             fill: '#fff',
                         }"></v-text>
@@ -153,12 +149,14 @@ onMounted(() => {
                             text: name,
                             fontStyle: 'bold',
                             fontSize: 40,
+                            fontFamily: 'Noto Sans JP',
                         }"></v-text>
                         <v-text :config="{
                             x: 0,
                             y: 83,
                             text: nameEn,
                             fontSize: 20,
+                            fontFamily: 'Poppins',
                         }"></v-text>
                     </v-group>
                     <v-group :config="{
@@ -179,6 +177,7 @@ onMounted(() => {
                             fontStyle: 'bold',
                             text: 'BAND NAME',
                             fontSize: 15,
+                            fontFamily: 'Poppins',
                             fill: '#fff',
                         }"></v-text>
                         <v-text :config="{
@@ -186,6 +185,7 @@ onMounted(() => {
                             y: 33,
                             text: bandName,
                             fontStyle: 'bold',
+                            fontFamily: 'Poppins',
                             fontSize: 40,
                         }"></v-text>
                     </v-group>
@@ -196,7 +196,7 @@ onMounted(() => {
                         <v-rect :config="{
                             x: 0,
                             y: 0,
-                            width: 125,
+                            width: 120,
                             height: 22,
                             letterSpacing: 1,
                             fill: '#000',
@@ -207,6 +207,7 @@ onMounted(() => {
                             fontStyle: 'bold',
                             text: 'DATE OF BIRTH',
                             fontSize: 15,
+                            fontFamily: 'Poppins',
                             fill: '#fff',
                         }"></v-text>
                         <v-text :config="{
@@ -214,6 +215,7 @@ onMounted(() => {
                             y: 33,
                             text: birthday,
                             fontStyle: 'bold',
+                            fontFamily: 'Poppins',
                             fontSize: 40,
                         }"></v-text>
                     </v-group>
@@ -223,7 +225,7 @@ onMounted(() => {
                     }">
                         <v-rect :config="{
                             x: 0,
-                            y: 0,
+                            y: 1,
                             width: 15,
                             height: 15,
                             letterSpacing: 1,
@@ -231,7 +233,7 @@ onMounted(() => {
                         }"></v-rect>
                         <v-rect :config="{
                             x: 0,
-                            y: 45,
+                            y: 46,
                             width: 15,
                             height: 15,
                             letterSpacing: 1,
@@ -241,6 +243,7 @@ onMounted(() => {
                             x: 16,
                             y: 0,
                             text: 'この会員証はライブハウスRiNGの\n会員であることを証明するものです。',
+                            fontFamily: 'Noto Sans JP',
                             fontSize: 20,
                             fontStyle: 'bold',
                             fill: '#000',
@@ -249,6 +252,7 @@ onMounted(() => {
                             x: 16,
                             y: 45,
                             text: 'この会員証は会員本人以外は使用できません。',
+                            fontFamily: 'Noto Sans JP',
                             fontSize: 20,
                             fontStyle: 'bold',
                             fill: '#000',
@@ -258,19 +262,89 @@ onMounted(() => {
             </v-stage>
         </div>
     </div>
-
-    <div>
-        <div>名称：<input class="input input-bordered w-full max-w-xs" placeholder="名称" v-model="name" /></div>
-        <div>名称英文：<input class="input input-bordered w-full max-w-xs" placeholder="Name" v-model="nameEn" /></div>
-        <div>乐队名称：<input class="input input-bordered w-full max-w-xs" placeholder="Morfonica" v-model="bandName" /></div>
-        <div>生日：<input class="input input-bordered w-full max-w-xs" placeholder="9/15" v-model="birthday" /></div>
-        <div>调整图像：
-            load:<input class="file-input w-full max-w-xs" type="file" accept="image/*" @change="handleFileChange" />
-            scale:<input type="range" min="25" max="200" value="100" class="range" v-model="AvatarScaleStr" />
-            x:<input type="range" min="0" :max="AvatarImgObj.width - 360" class="range" v-model="AvatarImgOffsetStr.x" />
-            y:<input type="range" min="0" :max="AvatarImgObj.height - 550" class="range" v-model="AvatarImgOffsetStr.y" />
-        </div>
-    </div>
+    <p>为了最佳使用体验，请使用电脑访问。</p>
+    <p>注意：Chrome 请右键或长按 canvas 画布下载，Safari 暂不支持右键保存 canvas 元素。第一次加载可能需要等待外部字体载入，如果字体显示不正常请多刷新几次。</p>
+    <p>如果你喜欢这个项目，请在 <a href="https://github.com/mitian233/memberscard" class="underline">GitHub</a> 为我点一颗星</p>
+    <table class="table-out">
+        <tbody>
+            <tr>
+                <th>名称</th>
+                <th><input class="input input-bordered w-full max-w-xs" placeholder="名称" v-model="name" /></th>
+            </tr>
+            <tr>
+                <th>名称英文</th>
+                <th><input class="input input-bordered w-full max-w-xs" placeholder="Name" v-model="nameEn" /></th>
+            </tr>
+            <tr>
+                <th>乐队名称</th>
+                <th><input class="input input-bordered w-full max-w-xs" placeholder="Morfonica" v-model="bandName" />
+                </th>
+            </tr>
+            <tr>
+                <th>生日</th>
+                <th><input class="input input-bordered w-full max-w-xs" placeholder="9/15" v-model="birthday" /></th>
+            </tr>
+            <tr>
+                <th>调整图像</th>
+                <th>
+                    <table class="table-in">
+                        <tbody>
+                            <tr>
+                                <th>加载</th>
+                                <th><input class="file-input w-full max-w-xs" type="file" accept="image/*"
+                                        @change="handleFileChange" /></th>
+                            </tr>
+                            <tr>
+                                <th>缩放</th>
+                                <th><input type="range" min="1" max="300" class="range" v-model="AvatarScaleStr" /></th>
+                            </tr>
+                            <tr>
+                                <th>x</th>
+                                <th><input type="range" min="0" :max="AvatarImgObj.width - 360" class="range"
+                                        v-model="AvatarImgOffsetStr.x" /></th>
+                            </tr>
+                            <tr>
+                                <th>y</th>
+                                <th><input type="range" min="0" :max="AvatarImgObj.height - 550" class="range"
+                                        v-model="AvatarImgOffsetStr.y" /></th>
+                            </tr>
+                        </tbody>
+                    </table>
+                </th>
+            </tr>
+        </tbody>
+    </table>
 </template>
 
-<style scoped></style>
+<style scoped>
+table[class^="table-"] {
+    margin-left: 50px;
+    tbody {
+        tr {
+            th {
+                font-weight: normal;
+                padding: 5px;
+                text-align: right;
+            }
+            th:nth-child(2) {
+                text-align: left;
+            }
+        }
+    }
+}
+table[class^="table-in"] {
+    margin-left: 0;
+    tbody {
+        tr {
+            th {
+                font-weight: normal;
+                padding: 5px;
+                text-align: right;
+            }
+            th:nth-child(2) {
+                text-align: left;
+            }
+        }
+    }
+}
+</style>
