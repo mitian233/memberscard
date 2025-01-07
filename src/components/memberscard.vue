@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import MembersCardBg from '@/assets/memberscard_bg.svg';
 import RingLogo from '@/assets/ring_logo.svg';
 import AvatarBg from '@/assets/avatar_bg.jpg';
@@ -8,6 +8,7 @@ import Konva from 'konva';
 import { type Context } from 'konva/lib/Context';
 import { type Shape } from 'konva/lib/Shape';
 import type { space } from 'postcss/lib/list';
+import type { Rect } from 'konva/lib/shapes/Rect';
 
 const stageSize = {
     width: 960,
@@ -22,11 +23,18 @@ const AvatarBgObj = new Image();
 AvatarBgObj.src = AvatarBg;
 const AvatarImgObj = ref<HTMLImageElement>(new Image());
 
-const AvatarImgOffset = reactive({
-    x: 0,
-    y: 0
+const AvatarImgOffsetStr = reactive({
+    x: "0",
+    y: "0"
 })
-
+const AvatarImgOffset = computed(() => {
+    return {
+        x: Number(AvatarImgOffsetStr.x),
+        y: Number(AvatarImgOffsetStr.y)
+    }
+})
+const AvatarScaleStr = ref<string>("100");
+const AvatarScale = computed(() => Number(AvatarScaleStr.value) / 100);
 const bandName = ref<string>('Morfonica');
 const name = ref<string>('二葉 つくし');
 const nameEn = ref<string>('Tsukushi Futaba');
@@ -45,6 +53,10 @@ const handleFileChange = (e: Event) => {
         }
     }
     reader.readAsDataURL(file);
+}
+
+const handleDragMove = () => {
+    console.debug('dragging');
 }
 
 onMounted(() => {
@@ -85,16 +97,17 @@ onMounted(() => {
                         height: 550,
                         cornerRadius: 25
                     }">
-                    <v-rect :config="{
-                        x: 0,
-                        y: 0,
-                        width: 360,
-                        height: 550,
-                        cornerRadius: 25,
-                        fillPatternImage: AvatarImgObj,
-                        fillPatternOffset: AvatarImgOffset,
-                        // fill: '#fff',
-                    }"></v-rect>
+                        <v-rect
+                            :config="{
+                                x: 0,
+                                y: 0,
+                                width: 360,
+                                height: 550,
+                                cornerRadius: 25,
+                                fillPatternImage: AvatarImgObj,
+                                fillPatternOffset: AvatarImgOffset,
+                                fillPatternScale: { x: AvatarScale, y: AvatarScale },
+                            }"></v-rect>
                     </v-group>
                     <v-text :config="{
                         text: `MEMBER\'S CARD`,
@@ -247,12 +260,15 @@ onMounted(() => {
     </div>
 
     <div>
-        <div>名称：<input placeholder="名称" v-model="name" /></div>
-        <div>名称英文：<input placeholder="Name" v-model="nameEn" /></div>
-        <div>乐队名称：<input placeholder="Morfonica" v-model="bandName" /></div>
-        <div>生日：<input placeholder="9/15" v-model="birthday" /></div>
-        <div>选择图像
-            <input type="file" accept="image/*" @change="handleFileChange" />
+        <div>名称：<input class="input input-bordered w-full max-w-xs" placeholder="名称" v-model="name" /></div>
+        <div>名称英文：<input class="input input-bordered w-full max-w-xs" placeholder="Name" v-model="nameEn" /></div>
+        <div>乐队名称：<input class="input input-bordered w-full max-w-xs" placeholder="Morfonica" v-model="bandName" /></div>
+        <div>生日：<input class="input input-bordered w-full max-w-xs" placeholder="9/15" v-model="birthday" /></div>
+        <div>调整图像：
+            load:<input class="file-input w-full max-w-xs" type="file" accept="image/*" @change="handleFileChange" />
+            scale:<input type="range" min="25" max="200" value="100" class="range" v-model="AvatarScaleStr" />
+            x:<input type="range" min="0" :max="AvatarImgObj.width - 360" class="range" v-model="AvatarImgOffsetStr.x" />
+            y:<input type="range" min="0" :max="AvatarImgObj.height - 550" class="range" v-model="AvatarImgOffsetStr.y" />
         </div>
     </div>
 </template>
