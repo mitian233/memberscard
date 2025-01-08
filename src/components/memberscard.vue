@@ -97,13 +97,13 @@ const copyImage = async () => {
             scaleX: 1,
             scaleY: 1
         });
-        originalStage.toBlob().then((blob) => {
+        originalStage.toBlob().then(blob => {
             const item = new ClipboardItem({ 'image/png': blob as Blob });
             navigator.clipboard.write([item]);
             originalStage.destroy();
         });
     }
-}
+};
 
 onMounted(() => {
     const img = new Image();
@@ -126,204 +126,255 @@ onBeforeUnmount(() => {
 <template>
     <div class="container mx-auto">
         <div class="w-full overflow-hidden">
-            <div ref="memberCardRef"
-                class="memberCard w-full h-full max-w-[1000px] max-h-[680px] overflow-hidden bg-black p-5">
+            <div
+                ref="memberCardRef"
+                class="memberCard w-full h-full max-w-[1000px] max-h-[680px] overflow-hidden bg-black p-5"
+            >
                 <v-stage ref="stageRef" :config="stageConfig">
                     <v-layer>
-                        <v-rect :config="{
-                            x: 0,
-                            y: 0,
-                            width: stageSize.width,
-                            height: stageSize.height,
-                            cornerRadius: 40,
-                            fill: '#fff'
-                        }"></v-rect>
-                        <v-image :config="{
-                            x: 0,
-                            y: 0,
-                            image: MCBgImageObj,
-                            cornerRadius: 40,
-                            ...stageSize
-                        }"></v-image>
-                        <v-image :config="{
-                            x: 25,
-                            y: 40,
-                            image: AvatarBgObj,
-                            width: 370,
-                            height: 560,
-                            cornerRadius: 25
-                        }"></v-image>
-                        <v-group :config="{
-                            x: 30,
-                            y: 45,
-                            width: 360,
-                            height: 550,
-                            cornerRadius: 25
-                        }">
-                            <v-rect :config="{
+                        <v-rect
+                            :config="{
                                 x: 0,
                                 y: 0,
+                                width: stageSize.width,
+                                height: stageSize.height,
+                                cornerRadius: 40,
+                                fill: '#fff'
+                            }"
+                        ></v-rect>
+                        <v-image
+                            :config="{
+                                x: 0,
+                                y: 0,
+                                image: MCBgImageObj,
+                                cornerRadius: 40,
+                                ...stageSize
+                            }"
+                        ></v-image>
+                        <v-image
+                            :config="{
+                                x: 25,
+                                y: 40,
+                                image: AvatarBgObj,
+                                width: 370,
+                                height: 560,
+                                cornerRadius: 25
+                            }"
+                        ></v-image>
+                        <v-group
+                            :config="{
+                                x: 30,
+                                y: 45,
                                 width: 360,
                                 height: 550,
-                                cornerRadius: 25,
-                                fillPatternImage: AvatarImgObj,
-                                fillPatternOffset: AvatarImgOffset,
-                                fillPatternScale: { x: AvatarScale, y: AvatarScale }
-                            }"></v-rect>
+                                cornerRadius: 25
+                            }"
+                        >
+                            <v-rect
+                                :config="{
+                                    x: 0,
+                                    y: 0,
+                                    width: 360,
+                                    height: 550,
+                                    cornerRadius: 25,
+                                    fillPatternImage: AvatarImgObj,
+                                    fillPatternOffset: AvatarImgOffset,
+                                    fillPatternScale: { x: AvatarScale, y: AvatarScale }
+                                }"
+                            ></v-rect>
                         </v-group>
-                        <v-text :config="{
-                            text: `MEMBER\'S CARD`,
-                            x: 430,
-                            y: 65,
-                            fontSize: 35,
-                            fill: '#fff',
-                            fontStyle: '',
-                            letterSpacing: 5,
-                            fontFamily: 'Noto Sans JP'
-                        }">
-                        </v-text>
-                        <v-image :config="{
-                            x: 430,
-                            y: 190,
-                            image: RingLogoObj,
-                            width: 300 / 2.5,
-                            height: 124 / 2.5
-                        }"></v-image>
-                        <v-group :config="{
-                            x: 430,
-                            y: 280
-                        }">
-                            <v-rect :config="{
-                                x: 0,
-                                y: 0,
-                                width: 55,
-                                height: 22,
-                                letterSpacing: 1,
-                                fill: '#000'
-                            }"></v-rect>
-                            <v-text :config="{
-                                x: 5,
-                                y: 5,
-                                fontStyle: 'bold',
-                                text: 'NAME',
-                                fontFamily: 'Poppins',
-                                fontSize: 15,
-                                fill: '#fff'
-                            }"></v-text>
-                            <v-text :config="{
-                                x: 0,
-                                y: 33,
-                                text: name,
-                                fontStyle: 'bold',
-                                fontSize: 40,
+                        <v-text
+                            :config="{
+                                text: `MEMBER\'S CARD`,
+                                x: 430,
+                                y: 65,
+                                fontSize: 35,
+                                fill: '#fff',
+                                fontStyle: '',
+                                letterSpacing: 5,
                                 fontFamily: 'Noto Sans JP'
-                            }"></v-text>
-                            <v-text :config="{
-                                x: 0,
-                                y: 83,
-                                text: nameEn,
-                                fontSize: 20,
-                                fontFamily: 'Poppins'
-                            }"></v-text>
+                            }"
+                        ></v-text>
+                        <v-image
+                            :config="{
+                                x: 430,
+                                y: 190,
+                                image: RingLogoObj,
+                                width: 300 / 2.5,
+                                height: 124 / 2.5
+                            }"
+                        ></v-image>
+                        <v-group
+                            :config="{
+                                x: 430,
+                                y: 280
+                            }"
+                        >
+                            <v-rect
+                                :config="{
+                                    x: 0,
+                                    y: 0,
+                                    width: 55,
+                                    height: 22,
+                                    letterSpacing: 1,
+                                    fill: '#000'
+                                }"
+                            ></v-rect>
+                            <v-text
+                                :config="{
+                                    x: 5,
+                                    y: 5,
+                                    fontStyle: 'bold',
+                                    text: 'NAME',
+                                    fontFamily: 'Poppins',
+                                    fontSize: 15,
+                                    fill: '#fff'
+                                }"
+                            ></v-text>
+                            <v-text
+                                :config="{
+                                    x: 0,
+                                    y: 33,
+                                    text: name,
+                                    fontStyle: 'bold',
+                                    fontSize: 40,
+                                    fontFamily: 'Noto Sans JP'
+                                }"
+                            ></v-text>
+                            <v-text
+                                :config="{
+                                    x: 0,
+                                    y: 83,
+                                    text: nameEn,
+                                    fontSize: 20,
+                                    fontFamily: 'Poppins'
+                                }"
+                            ></v-text>
                         </v-group>
-                        <v-group :config="{
-                            x: 430,
-                            y: 420
-                        }">
-                            <v-rect :config="{
-                                x: 0,
-                                y: 0,
-                                width: 102,
-                                height: 22,
-                                letterSpacing: 1,
-                                fill: '#000'
-                            }"></v-rect>
-                            <v-text :config="{
-                                x: 5,
-                                y: 5,
-                                fontStyle: 'bold',
-                                text: 'BAND NAME',
-                                fontSize: 15,
-                                fontFamily: 'Poppins',
-                                fill: '#fff'
-                            }"></v-text>
-                            <v-text :config="{
-                                x: 0,
-                                y: 33,
-                                text: bandName,
-                                fontStyle: 'bold',
-                                fontFamily: 'Poppins',
-                                fontSize: 40
-                            }"></v-text>
+                        <v-group
+                            :config="{
+                                x: 430,
+                                y: 420
+                            }"
+                        >
+                            <v-rect
+                                :config="{
+                                    x: 0,
+                                    y: 0,
+                                    width: 102,
+                                    height: 22,
+                                    letterSpacing: 1,
+                                    fill: '#000'
+                                }"
+                            ></v-rect>
+                            <v-text
+                                :config="{
+                                    x: 5,
+                                    y: 5,
+                                    fontStyle: 'bold',
+                                    text: 'BAND NAME',
+                                    fontSize: 15,
+                                    fontFamily: 'Poppins',
+                                    fill: '#fff'
+                                }"
+                            ></v-text>
+                            <v-text
+                                :config="{
+                                    x: 0,
+                                    y: 33,
+                                    text: bandName,
+                                    fontStyle: 'bold',
+                                    fontFamily: 'Poppins',
+                                    fontSize: 40
+                                }"
+                            ></v-text>
                         </v-group>
-                        <v-group :config="{
-                            x: 730,
-                            y: 420
-                        }">
-                            <v-rect :config="{
-                                x: 0,
-                                y: 0,
-                                width: 120,
-                                height: 22,
-                                letterSpacing: 1,
-                                fill: '#000'
-                            }"></v-rect>
-                            <v-text :config="{
-                                x: 5,
-                                y: 5,
-                                fontStyle: 'bold',
-                                text: 'DATE OF BIRTH',
-                                fontSize: 15,
-                                fontFamily: 'Poppins',
-                                fill: '#fff'
-                            }"></v-text>
-                            <v-text :config="{
-                                x: 0,
-                                y: 33,
-                                text: birthday,
-                                fontStyle: 'bold',
-                                fontFamily: 'Poppins',
-                                fontSize: 40
-                            }"></v-text>
+                        <v-group
+                            :config="{
+                                x: 730,
+                                y: 420
+                            }"
+                        >
+                            <v-rect
+                                :config="{
+                                    x: 0,
+                                    y: 0,
+                                    width: 120,
+                                    height: 22,
+                                    letterSpacing: 1,
+                                    fill: '#000'
+                                }"
+                            ></v-rect>
+                            <v-text
+                                :config="{
+                                    x: 5,
+                                    y: 5,
+                                    fontStyle: 'bold',
+                                    text: 'DATE OF BIRTH',
+                                    fontSize: 15,
+                                    fontFamily: 'Poppins',
+                                    fill: '#fff'
+                                }"
+                            ></v-text>
+                            <v-text
+                                :config="{
+                                    x: 0,
+                                    y: 33,
+                                    text: birthday,
+                                    fontStyle: 'bold',
+                                    fontFamily: 'Poppins',
+                                    fontSize: 40
+                                }"
+                            ></v-text>
                         </v-group>
-                        <v-group :config="{
-                            x: 430,
-                            y: 530
-                        }">
-                            <v-rect :config="{
-                                x: 0,
-                                y: 1,
-                                width: 15,
-                                height: 15,
-                                letterSpacing: 1,
-                                fill: '#000'
-                            }"></v-rect>
-                            <v-rect :config="{
-                                x: 0,
-                                y: 46,
-                                width: 15,
-                                height: 15,
-                                letterSpacing: 1,
-                                fill: '#000'
-                            }"></v-rect>
-                            <v-text :config="{
-                                x: 16,
-                                y: 0,
-                                text: 'この会員証はライブハウスRiNGの\n会員であることを証明するものです。',
-                                fontFamily: 'Noto Sans JP',
-                                fontSize: 20,
-                                fontStyle: 'bold',
-                                fill: '#000'
-                            }"></v-text>
-                            <v-text :config="{
-                                x: 16,
-                                y: 45,
-                                text: 'この会員証は会員本人以外は使用できません。',
-                                fontFamily: 'Noto Sans JP',
-                                fontSize: 20,
-                                fontStyle: 'bold',
-                                fill: '#000'
-                            }"></v-text>
+                        <v-group
+                            :config="{
+                                x: 430,
+                                y: 530
+                            }"
+                        >
+                            <v-rect
+                                :config="{
+                                    x: 0,
+                                    y: 1,
+                                    width: 15,
+                                    height: 15,
+                                    letterSpacing: 1,
+                                    fill: '#000'
+                                }"
+                            ></v-rect>
+                            <v-rect
+                                :config="{
+                                    x: 0,
+                                    y: 46,
+                                    width: 15,
+                                    height: 15,
+                                    letterSpacing: 1,
+                                    fill: '#000'
+                                }"
+                            ></v-rect>
+                            <v-text
+                                :config="{
+                                    x: 16,
+                                    y: 0,
+                                    text: 'この会員証はライブハウスRiNGの\n会員であることを証明するものです。',
+                                    fontFamily: 'Noto Sans JP',
+                                    fontSize: 20,
+                                    fontStyle: 'bold',
+                                    fill: '#000'
+                                }"
+                            ></v-text>
+                            <v-text
+                                :config="{
+                                    x: 16,
+                                    y: 45,
+                                    text: 'この会員証は会員本人以外は使用できません。',
+                                    fontFamily: 'Noto Sans JP',
+                                    fontSize: 20,
+                                    fontStyle: 'bold',
+                                    fill: '#000'
+                                }"
+                            ></v-text>
                         </v-group>
                     </v-layer>
                 </v-stage>
@@ -352,26 +403,41 @@ onBeforeUnmount(() => {
                 <tr>
                     <th>名称</th>
                     <th>
-                        <input class="input input-bordered w-full max-w-xs" placeholder="名称" v-model="name" />
+                        <input
+                            class="input input-bordered w-full max-w-xs"
+                            placeholder="名称"
+                            v-model="name"
+                        />
                     </th>
                 </tr>
                 <tr>
                     <th>名称英文</th>
                     <th>
-                        <input class="input input-bordered w-full max-w-xs" placeholder="Name" v-model="nameEn" />
+                        <input
+                            class="input input-bordered w-full max-w-xs"
+                            placeholder="Name"
+                            v-model="nameEn"
+                        />
                     </th>
                 </tr>
                 <tr>
                     <th>乐队名称</th>
                     <th>
-                        <input class="input input-bordered w-full max-w-xs" placeholder="Morfonica"
-                            v-model="bandName" />
+                        <input
+                            class="input input-bordered w-full max-w-xs"
+                            placeholder="Morfonica"
+                            v-model="bandName"
+                        />
                     </th>
                 </tr>
                 <tr>
                     <th>生日</th>
                     <th>
-                        <input class="input input-bordered w-full max-w-xs" placeholder="9/15" v-model="birthday" />
+                        <input
+                            class="input input-bordered w-full max-w-xs"
+                            placeholder="9/15"
+                            v-model="birthday"
+                        />
                     </th>
                 </tr>
                 <tr>
@@ -382,28 +448,48 @@ onBeforeUnmount(() => {
                                 <tr>
                                     <th>加载</th>
                                     <th>
-                                        <input class="file-input w-full max-w-xs" type="file" accept="image/*"
-                                            @change="handleFileChange" />
+                                        <input
+                                            class="file-input w-full max-w-xs"
+                                            type="file"
+                                            accept="image/*"
+                                            @change="handleFileChange"
+                                        />
                                     </th>
                                 </tr>
                                 <tr>
                                     <th>缩放</th>
                                     <th>
-                                        <input type="range" min="1" max="300" class="range" v-model="AvatarScaleStr" />
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="300"
+                                            class="range"
+                                            v-model="AvatarScaleStr"
+                                        />
                                     </th>
                                 </tr>
                                 <tr>
                                     <th>x</th>
                                     <th>
-                                        <input type="range" min="0" :max="AvatarImgObj.width - 360" class="range"
-                                            v-model="AvatarImgOffsetStr.x" />
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            :max="AvatarImgObj.width - 360"
+                                            class="range"
+                                            v-model="AvatarImgOffsetStr.x"
+                                        />
                                     </th>
                                 </tr>
                                 <tr>
                                     <th>y</th>
                                     <th>
-                                        <input type="range" min="0" :max="AvatarImgObj.height - 550" class="range"
-                                            v-model="AvatarImgOffsetStr.y" />
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            :max="AvatarImgObj.height - 550"
+                                            class="range"
+                                            v-model="AvatarImgOffsetStr.y"
+                                        />
                                     </th>
                                 </tr>
                             </tbody>
