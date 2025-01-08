@@ -112,7 +112,10 @@ onMounted(() => {
         AvatarImgObj.value = img;
     };
     window.addEventListener('resize', handleResize);
-    handleResize();
+    handleResize(); //init
+    document.fonts.ready.then(() => {
+        stageRef.value?.getStage().draw();
+    });
 });
 
 onBeforeUnmount(() => {
