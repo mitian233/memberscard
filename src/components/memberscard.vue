@@ -125,10 +125,10 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="container mx-auto">
-        <div class="w-full flex justify-center items-center">
+        <div class="w-full flex justify-center items-center bg-black">
             <div
                 ref="memberCardRef"
-                class="memberCard w-full h-full max-w-[1000px] max-h-[680px] overflow-hidden bg-black p-5"
+                class="memberCard w-full h-full max-w-[1000px] max-h-[680px] overflow-hidden p-5"
             >
                 <v-stage ref="stageRef" :config="stageConfig">
                     <v-layer>
