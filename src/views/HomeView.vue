@@ -3,9 +3,7 @@ import Memberscard from '@/components/memberscard.vue';
 </script>
 
 <template>
-<Memberscard />
+    <Memberscard />
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>
