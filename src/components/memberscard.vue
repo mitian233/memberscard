@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, onBeforeUnmount } from 'vue';
+import Konva from 'konva';
 import MembersCardBg from '@/assets/memberscard_bg.svg';
 import RingLogo from '@/assets/ring_logo.svg';
 import AvatarBg from '@/assets/avatar_bg.jpg';
@@ -15,6 +16,9 @@ const stageConfig = reactive({
     scaleX: 1,
     scaleY: 1
 });
+
+const memberCardRef = ref<HTMLElement | null>(null);
+const stageRef = ref<Konva.Stage | null>(null);
 
 const MCBgImageObj = new Image();
 MCBgImageObj.src = MembersCardBg;
@@ -58,15 +62,31 @@ const handleFileChange = (e: Event) => {
 
 const handleResize = () => {
     //padding 20px
-    const width =
-        document.getElementsByClassName('mcard')[0].clientWidth - 40 < stageSize.width
-            ? document.getElementsByClassName('mcard')[0].clientWidth - 40
-            : stageSize.width;
-    const scaleX = width / stageSize.width > 1 ? 1 : width / stageSize.width;
+    const width = Math.min((memberCardRef.value?.clientWidth ?? 0) - 40, stageSize.width);
+    const scaleX = Math.min(width / stageSize.width, 1);
     stageConfig.scaleX = scaleX;
     stageConfig.scaleY = scaleX;
     stageConfig.width = stageSize.width * stageConfig.scaleX;
     stageConfig.height = stageSize.height * stageConfig.scaleY;
+};
+
+const saveAsImage = () => {
+    if (stageRef.value) {
+        // clone stage to avoid changing the original stage
+        const originalStage = stageRef.value.getStage().clone({
+            width: stageSize.width,
+            height: stageSize.height,
+            scaleX: 1,
+            scaleY: 1
+        });
+        const dataURL = originalStage.toDataURL();
+        const link = document.createElement('a');
+        link.download = 'memberscard.png';
+        link.href = dataURL;
+        link.click();
+
+        originalStage.destroy();
+    }
 };
 
 onMounted(() => {
@@ -88,9 +108,10 @@ onBeforeUnmount(() => {
     <div class="container mx-auto">
         <div class="w-full overflow-hidden">
             <div
-                class="mcard w-full h-full max-w-[1000px] max-h-[680px] overflow-hidden bg-black p-5"
+                ref="memberCardRef"
+                class="memberCard w-full h-full max-w-[1000px] max-h-[680px] overflow-hidden bg-black p-5"
             >
-                <v-stage :config="stageConfig">
+                <v-stage ref="stageRef" :config="stageConfig">
                     <v-layer>
                         <v-rect
                             :config="{
@@ -355,6 +376,13 @@ onBeforeUnmount(() => {
                 </p>
             </div>
         </div>
+        <button
+            class="bg-sky-500 hover:bg-sky-700 px-5 py-2 text-sm leading-5 rounded-full font-semibold text-white"
+            @click="saveAsImage"
+        >
+            保存图片
+        </button>
+
         <table class="table-out">
             <tbody>
                 <tr>
