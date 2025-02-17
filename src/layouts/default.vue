@@ -3,9 +3,9 @@ import DefaultLayout from '@/layouts/default.vue';
 </script>
 
 <template>
-    <DefaultLayout>
+    <div class="md:max-w-[768px] mx-auto px-4">
         <slot />
-    </DefaultLayout>
+    </div>
 </template>
 
 <style scoped>
