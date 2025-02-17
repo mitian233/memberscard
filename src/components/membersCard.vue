@@ -64,9 +64,9 @@ const handleFileChange = (event: Event) => {
 const handleResize = () => {
     //padding 20px
     const width = Math.min((memberCardRef.value?.clientWidth ?? 0) - 40, stageSize.width);
-    const scaleX = Math.min(width / stageSize.width, 1);
-    stageConfig.scaleX = scaleX;
-    stageConfig.scaleY = scaleX;
+    const scaleRatio = Math.min(width / stageSize.width, 1);
+    stageConfig.scaleX = scaleRatio;
+    stageConfig.scaleY = scaleRatio;
     stageConfig.width = stageSize.width * stageConfig.scaleX;
     stageConfig.height = stageSize.height * stageConfig.scaleY;
 };
@@ -75,10 +75,10 @@ const saveAsImage = () => {
     if (stageRef.value) {
         // clone stage to avoid changing the original stage
         const originalStage = stageRef.value.getStage().clone({
-            width: stageSize.width,
-            height: stageSize.height,
-            scaleX: 1,
-            scaleY: 1
+            width: stageSize.width * 4,
+            height: stageSize.height * 4,
+            scaleX: 4,
+            scaleY: 4
         });
         const dataURL = originalStage.toDataURL();
         const link = document.createElement('a');
@@ -93,10 +93,10 @@ const saveAsImage = () => {
 const copyImage = async () => {
     if (stageRef.value) {
         const originalStage = stageRef.value.getStage().clone({
-            width: stageSize.width,
-            height: stageSize.height,
-            scaleX: 1,
-            scaleY: 1
+            width: stageSize.width * 2,
+            height: stageSize.height * 2,
+            scaleX: 2,
+            scaleY: 2
         });
         originalStage.toBlob().then(blob => {
             const item = new ClipboardItem({ 'image/png': blob as Blob });
