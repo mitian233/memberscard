@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import Memberscard from '@/components/memberscard.vue';
+import MembersCard from '@/components/membersCard.vue';
 </script>
 
 <template>
-    <Memberscard />
+    <MembersCard />
 </template>
 
 <style scoped></style>

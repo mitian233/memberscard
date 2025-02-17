@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, onBeforeUnmount } from 'vue';
+import { Popover, PopoverButton, PopoverPanel } from '@headlessui/vue';
 import Konva from 'konva';
 import MembersCardBg from '@/assets/memberscard_bg.svg';
 import RingLogo from '@/assets/ring_logo.svg';
@@ -45,14 +46,14 @@ const name = ref<string>('二葉 つくし');
 const nameEn = ref<string>('Tsukushi Futaba');
 const birthday = ref<string>('9/15');
 
-const handleFileChange = (e: Event) => {
-    const target = e.target as HTMLInputElement;
+const handleFileChange = (event: Event) => {
+    const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = event => {
         const img = new Image();
-        img.src = e.target?.result as string;
+        img.src = event.target?.result as string;
         img.onload = () => {
             AvatarImgObj.value = img;
         };
@@ -121,97 +122,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
     window.removeEventListener('resize', handleResize);
 });
-
-import { Popover, PopoverButton, PopoverPanel } from '@headlessui/vue';
-
-const solutions = [
-    {
-        name: 'Insights',
-        description: 'Measure actions your users take',
-        href: '##',
-        icon: `
-      <svg
-        width="48"
-        height="48"
-        viewBox="0 0 48 48"
-        fill="none"
-        aria-hidden="true"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <rect width="48" height="48" rx="8" fill="#FFEDD5" />
-        <path
-          d="M24 11L35.2583 17.5V30.5L24 37L12.7417 30.5V17.5L24 11Z"
-          stroke="#FB923C"
-          stroke-width="2"
-        />
-        <path
-          fill-rule="evenodd"
-          clip-rule="evenodd"
-          d="M16.7417 19.8094V28.1906L24 32.3812L31.2584 28.1906V19.8094L24 15.6188L16.7417 19.8094Z"
-          stroke="#FDBA74"
-          stroke-width="2"
-        />
-        <path
-          fill-rule="evenodd"
-          clip-rule="evenodd"
-          d="M20.7417 22.1196V25.882L24 27.7632L27.2584 25.882V22.1196L24 20.2384L20.7417 22.1196Z"
-          stroke="#FDBA74"
-          stroke-width="2"
-        />
-      </svg>
-    `
-    },
-    {
-        name: 'Automations',
-        description: 'Create your own targeted content',
-        href: '##',
-        icon: `
-      <svg
-        width="48"
-        height="48"
-        viewBox="0 0 48 48"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <rect width="48" height="48" rx="8" fill="#FFEDD5" />
-        <path
-          d="M28.0413 20L23.9998 13L19.9585 20M32.0828 27.0001L36.1242 34H28.0415M19.9585 34H11.8755L15.9171 27"
-          stroke="#FB923C"
-          stroke-width="2"
-        />
-        <path
-          fill-rule="evenodd"
-          clip-rule="evenodd"
-          d="M18.804 30H29.1963L24.0001 21L18.804 30Z"
-          stroke="#FDBA74"
-          stroke-width="2"
-        />
-      </svg>
-    `
-    },
-    {
-        name: 'Reports',
-        description: 'Keep track of your growth',
-        href: '##',
-        icon: `
-      <svg
-        width="48"
-        height="48"
-        viewBox="0 0 48 48"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <rect width="48" height="48" rx="8" fill="#FFEDD5" />
-        <rect x="13" y="32" width="2" height="4" fill="#FDBA74" />
-        <rect x="17" y="28" width="2" height="8" fill="#FDBA74" />
-        <rect x="21" y="24" width="2" height="12" fill="#FDBA74" />
-        <rect x="25" y="20" width="2" height="16" fill="#FDBA74" />
-        <rect x="29" y="16" width="2" height="20" fill="#FB923C" />
-        <rect x="33" y="12" width="2" height="24" fill="#FB923C" />
-      </svg>
-    `
-    }
-];
 </script>
 
 <template>
@@ -520,9 +430,9 @@ const solutions = [
                                         <th>名称</th>
                                         <th>
                                             <input
+                                                v-model="name"
                                                 class="input input-bordered w-full max-w-xs"
                                                 placeholder="名称"
-                                                v-model="name"
                                             />
                                         </th>
                                     </tr>
@@ -530,9 +440,9 @@ const solutions = [
                                         <th>名称英文</th>
                                         <th>
                                             <input
+                                                v-model="nameEn"
                                                 class="input input-bordered w-full max-w-xs"
                                                 placeholder="Name"
-                                                v-model="nameEn"
                                             />
                                         </th>
                                     </tr>
@@ -540,9 +450,9 @@ const solutions = [
                                         <th>乐队名称</th>
                                         <th>
                                             <input
+                                                v-model="bandName"
                                                 class="input input-bordered w-full max-w-xs"
                                                 placeholder="Morfonica"
-                                                v-model="bandName"
                                             />
                                         </th>
                                     </tr>
@@ -550,9 +460,9 @@ const solutions = [
                                         <th>生日</th>
                                         <th>
                                             <input
+                                                v-model="birthday"
                                                 class="input input-bordered w-full max-w-xs"
                                                 placeholder="9/15"
-                                                v-model="birthday"
                                             />
                                         </th>
                                     </tr>
@@ -576,11 +486,11 @@ const solutions = [
                                                         <th>缩放</th>
                                                         <th>
                                                             <input
+                                                                v-model="AvatarScaleStr"
                                                                 type="range"
                                                                 min="1"
                                                                 max="300"
                                                                 class="range"
-                                                                v-model="AvatarScaleStr"
                                                             />
                                                         </th>
                                                     </tr>
@@ -588,11 +498,11 @@ const solutions = [
                                                         <th>x</th>
                                                         <th>
                                                             <input
+                                                                v-model="AvatarImgOffsetStr.x"
                                                                 type="range"
                                                                 min="0"
                                                                 :max="AvatarImgObj.width - 360"
                                                                 class="range"
-                                                                v-model="AvatarImgOffsetStr.x"
                                                             />
                                                         </th>
                                                     </tr>
@@ -600,11 +510,11 @@ const solutions = [
                                                         <th>y</th>
                                                         <th>
                                                             <input
+                                                                v-model="AvatarImgOffsetStr.y"
                                                                 type="range"
                                                                 min="0"
                                                                 :max="AvatarImgObj.height - 550"
                                                                 class="range"
-                                                                v-model="AvatarImgOffsetStr.y"
                                                             />
                                                         </th>
                                                     </tr>

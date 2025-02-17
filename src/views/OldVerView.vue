@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router';
+import OldVerCard from '@/components/oldVerCard.vue';
 </script>
 
 <template>
-    <RouterView />
+    <OldVerCard />
 </template>
 
 <style scoped></style>
