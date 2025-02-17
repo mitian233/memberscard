@@ -174,10 +174,10 @@ onBeforeUnmount(() => {
                         <v-image
                             :config="{
                                 x: 730,
-                                y: 200,
+                                y: 220,
                                 image: RingLogoObj,
-                                width: 300 / 2.5,
-                                height: 124 / 2.5
+                                width: 300 / 2,
+                                height: 124 / 2
                             }"
                         ></v-image>
                         <v-group
@@ -286,9 +286,10 @@ onBeforeUnmount(() => {
         <div class="my-5 grid grid-cols-2 gap-5">
             <button class="btn" @click="saveAsImage">保存图片</button>
             <button class="btn" @click="copyImage">复制图片</button>
+            <a href="/" class="btn col-span-2">二代会员证版本</a>
         </div>
     </div>
-    <div class="fixed bottom-10 w-full max-w-sm left-1/2 -translate-x-1/2">
+    <div class="fixed bottom-10 w-full max-w-fit left-1/2 -translate-x-1/2">
         <Popover v-slot="{ open }" class="relative flex justify-center">
             <PopoverButton
                 :class="open ? 'text-white' : 'text-white/90'"

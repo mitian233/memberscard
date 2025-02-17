@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import OldVerCard from '@/components/oldVerCard.vue';
 import DefaultLayout from '@/layouts/default.vue';
 </script>
 
 <template>
     <DefaultLayout>
-        <OldVerCard />
+        <slot />
     </DefaultLayout>
 </template>
 
-<style scoped></style>
+<style scoped>
+
+</style>
