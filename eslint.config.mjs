@@ -23,7 +23,7 @@ export default typescriptEslint.config(
         },
         rules: {
             'vue/html-indent': ['error', 2],
-            'vue/ multi-word-component-names': 'warn',
+            'vue/multi-word-component-names': 'warn',
             'vue/max-attributes-per-line': [
                 'error',
                 {
