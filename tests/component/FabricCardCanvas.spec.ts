@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { flushPromises, mount, type VueWrapper } from "@vue/test-utils";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { nextTick } from "vue";
+import { defineComponent, h, nextTick, ref } from "vue";
 import type {
   CanvasSettledPayload,
   CanvasSyncRequest,
@@ -15,6 +15,7 @@ import type {
 import type { FabricCardScene, InteractiveCanvasAdapter } from "@/fabric/types";
 import { createCardDocument } from "@/editor/cardDocument";
 import { currentCardTemplate } from "@/templates/currentCardTemplate";
+import { legacyCardTemplate } from "@/templates/legacyCardTemplate";
 import type {
   CardDocument,
   CardPatch,
@@ -58,7 +59,9 @@ interface FakeResizeObserver {
 
 const resizeObservers: FakeResizeObserver[] = [];
 const frames = new Map<number, FrameRequestCallback>();
+let cancelAnimationFrameMock: ReturnType<typeof vi.fn>;
 let nextFrameId = 1;
+const mountedWrappers: VueWrapper[] = [];
 
 function installLayoutFakes(): void {
   class TestResizeObserver implements ResizeObserver {
@@ -80,9 +83,10 @@ function installLayoutFakes(): void {
     frames.set(id, callback);
     return id;
   });
-  vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+  cancelAnimationFrameMock = vi.fn((id: number) => {
     frames.delete(id);
   });
+  vi.stubGlobal("cancelAnimationFrame", cancelAnimationFrameMock);
 }
 
 function flushAnimationFrames(): void {
@@ -160,6 +164,16 @@ function createRequest(
   };
 }
 
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object") {
+    Object.freeze(value);
+    for (const child of Object.values(value)) {
+      deepFreeze(child);
+    }
+  }
+  return value;
+}
+
 function mountCanvas(
   overrides: Partial<{
     document: CardDocument;
@@ -175,7 +189,7 @@ function mountCanvas(
   const syncRequest =
     overrides.syncRequest ?? createRequest(document, template, 1);
 
-  return mount(FabricCardCanvas, {
+  const wrapper = mount(FabricCardCanvas, {
     attachTo: document.body,
     props: {
       document,
@@ -186,6 +200,8 @@ function mountCanvas(
       loading: overrides.loading ?? false,
     },
   });
+  mountedWrappers.push(wrapper);
+  return wrapper;
 }
 
 let canvas: FakeCanvas;
@@ -197,6 +213,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   resizeObservers.length = 0;
   frames.clear();
+  cancelAnimationFrameMock = vi.fn();
   nextFrameId = 1;
   canvas = createFakeCanvas();
   controller = createFakeController(canvas);
@@ -214,7 +231,12 @@ beforeEach(() => {
   );
 });
 
-afterEach(() => {
+afterEach(async () => {
+  for (const wrapper of mountedWrappers.splice(0)) {
+    if (wrapper.exists()) {
+      await wrapper.unmount();
+    }
+  }
   vi.unstubAllGlobals();
 });
 
@@ -289,6 +311,40 @@ describe("FabricCardCanvas", () => {
     expect(session.submit).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps frozen initial props and requests unchanged through callbacks and same-revision swaps", async () => {
+    const template = deepFreeze(structuredClone(currentCardTemplate));
+    const document = deepFreeze(createCardDocument(template));
+    const request = deepFreeze(createRequest(document, template, 1));
+    const snapshot = JSON.stringify({ document, template, request });
+    const wrapper = mountCanvas({
+      document,
+      template,
+      syncRequest: request,
+      controller,
+    });
+    await nextTick();
+    const callbacks = sessionOptions?.callbacks;
+    callbacks?.onDocumentPatch(
+      { type: "field", field: "name", value: "回调名字" },
+      "canvas",
+    );
+    callbacks?.onSelectionChange({ type: "field", field: "name" });
+    callbacks?.onFieldValidation("name", null);
+    callbacks?.onEditCancel("name", document.name);
+    expect(JSON.stringify({ document, template, request })).toBe(snapshot);
+    expect(session.submit).toHaveBeenCalledTimes(1);
+
+    const legacyDocument = createCardDocument(legacyCardTemplate);
+    const legacyRequest = createRequest(legacyDocument, legacyCardTemplate, 1);
+    await wrapper.setProps({
+      document: legacyDocument,
+      template: legacyCardTemplate,
+      syncRequest: legacyRequest,
+    });
+    expect(wrapper.get("[data-card-summary]").text()).not.toContain("出生日期");
+    expect(session.submit).toHaveBeenCalledTimes(1);
+  });
+
   it("forwards every session event with exact payloads and guards callbacks after unmount", async () => {
     const wrapper = mountCanvas({ controller });
     await nextTick();
@@ -356,6 +412,51 @@ describe("FabricCardCanvas", () => {
     await defaultWrapper.unmount();
   });
 
+  it("creates independent default controller and canvas instances per component", async () => {
+    const firstCanvas = createFakeCanvas();
+    const secondCanvas = createFakeCanvas();
+    const firstController = createFakeController(firstCanvas);
+    const secondController = createFakeController(secondCanvas);
+    const firstSession: CardCanvasSession = {
+      submit: vi.fn(async () => undefined),
+      dispose: vi.fn(async () => undefined),
+    };
+    const secondSession: CardCanvasSession = {
+      submit: vi.fn(async () => undefined),
+      dispose: vi.fn(async () => undefined),
+    };
+    let firstOptions: CreateCardCanvasSessionOptions | undefined;
+    let secondOptions: CreateCardCanvasSessionOptions | undefined;
+    moduleMocks.createCardCanvasController
+      .mockReset()
+      .mockReturnValueOnce(firstController)
+      .mockReturnValueOnce(secondController);
+    moduleMocks.createCardCanvasSession
+      .mockReset()
+      .mockImplementationOnce((options: CreateCardCanvasSessionOptions) => {
+        firstOptions = options;
+        return firstSession;
+      })
+      .mockImplementationOnce((options: CreateCardCanvasSessionOptions) => {
+        secondOptions = options;
+        return secondSession;
+      });
+
+    const firstWrapper = mountCanvas();
+    const secondWrapper = mountCanvas();
+    await nextTick();
+
+    expect(moduleMocks.createCardCanvasController).toHaveBeenCalledTimes(2);
+    expect(firstOptions?.controller).toBe(firstController);
+    expect(secondOptions?.controller).toBe(secondController);
+    expect(firstOptions?.canvas).toBe(firstCanvas);
+    expect(secondOptions?.canvas).toBe(secondCanvas);
+    expect(firstOptions?.pointerTarget).toBe(firstCanvas.raw.upperCanvasEl);
+    expect(secondOptions?.pointerTarget).toBe(secondCanvas.raw.upperCanvasEl);
+    expect(firstWrapper.get("section").exists()).toBe(true);
+    expect(secondWrapper.get("section").exists()).toBe(true);
+  });
+
   it("tracks deferred busy work and classifies a rejected submit once", async () => {
     let rejectSubmit: ((error: unknown) => void) | undefined;
     session.submit = vi.fn(
@@ -394,6 +495,153 @@ describe("FabricCardCanvas", () => {
     expect(wrapper.get("section").attributes("aria-busy")).toBe("true");
     await wrapper.setProps({ loading: false });
     expect(wrapper.get("section").attributes("aria-busy")).toBeUndefined();
+  });
+
+  it("classifies isolated async and synchronous submit failures exactly once", async () => {
+    const document = createCardDocument(currentCardTemplate);
+    const request = createRequest(document, currentCardTemplate, 1);
+    const asyncError = new Error("async submit failed");
+    const asyncStatus: Extract<ResourceStatus, { state: "error" }> = {
+      state: "error",
+      code: "logo-load-failed",
+      message: "async classified",
+      recoverable: true,
+    };
+    (
+      controller.classifyResourceError as ReturnType<typeof vi.fn>
+    ).mockReturnValue(asyncStatus);
+    session.submit = vi.fn(() => Promise.reject(asyncError));
+
+    const unhandled: unknown[] = [];
+    const unhandledListener = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", unhandledListener);
+    const asyncWrapper = mountCanvas({
+      document,
+      syncRequest: request,
+      controller,
+    });
+    await nextTick();
+    await flushPromises();
+    process.off("unhandledRejection", unhandledListener);
+
+    expect(controller.classifyResourceError).toHaveBeenCalledTimes(1);
+    expect(controller.classifyResourceError).toHaveBeenCalledWith(
+      asyncError,
+      document,
+      currentCardTemplate,
+    );
+    expect(asyncWrapper.emitted("resource-error")).toEqual([
+      [{ revision: 1, status: asyncStatus }],
+    ]);
+    expect(asyncWrapper.get("section").attributes("aria-busy")).toBeUndefined();
+    expect(unhandled).toEqual([]);
+
+    const syncDocument = createCardDocument(currentCardTemplate);
+    const syncRequest = createRequest(syncDocument, currentCardTemplate, 1);
+    const syncError = new Error("sync submit failed");
+    const syncStatus: Extract<ResourceStatus, { state: "error" }> = {
+      state: "error",
+      code: "background-load-failed",
+      message: "sync classified",
+      recoverable: true,
+    };
+    const syncController = createFakeController(canvas);
+    (
+      syncController.classifyResourceError as ReturnType<typeof vi.fn>
+    ).mockReturnValue(syncStatus);
+    const syncSession: CardCanvasSession = {
+      submit: vi.fn(() => {
+        throw syncError;
+      }),
+      dispose: vi.fn(async () => undefined),
+    };
+    moduleMocks.createCardCanvasSession.mockImplementationOnce(
+      (options: CreateCardCanvasSessionOptions) => {
+        sessionOptions = options;
+        return syncSession;
+      },
+    );
+    const syncWrapper = mountCanvas({
+      document: syncDocument,
+      syncRequest,
+      controller: syncController,
+    });
+    await nextTick();
+
+    expect(syncController.classifyResourceError).toHaveBeenCalledTimes(1);
+    expect(syncController.classifyResourceError).toHaveBeenCalledWith(
+      syncError,
+      syncDocument,
+      currentCardTemplate,
+    );
+    expect(syncWrapper.emitted("resource-error")).toEqual([
+      [{ revision: 1, status: syncStatus }],
+    ]);
+    expect(syncWrapper.get("section").attributes("aria-busy")).toBeUndefined();
+  });
+
+  it("stops revision work when a parent removes the child and updates the request", async () => {
+    const document = createCardDocument(currentCardTemplate);
+    const initialRequest = createRequest(document, currentCardTemplate, 1);
+    const state = {
+      show: ref(true),
+      request: ref(initialRequest),
+    };
+    const Harness = defineComponent({
+      setup() {
+        return state;
+      },
+      render() {
+        return this.show
+          ? h(FabricCardCanvas, {
+              document,
+              template: currentCardTemplate,
+              syncRequest: this.request,
+              controller,
+            })
+          : null;
+      },
+    });
+    const harness = mount(Harness, { attachTo: document.body });
+    mountedWrappers.push(harness);
+    await nextTick();
+    expect(session.submit).toHaveBeenCalledTimes(1);
+
+    state.show.value = false;
+    await nextTick();
+    expect(session.dispose).toHaveBeenCalledTimes(1);
+
+    state.request.value = createRequest(document, currentCardTemplate, 2);
+    await nextTick();
+    expect(session.submit).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels a pending initial frame and swallows rejected disposal", async () => {
+    installLayoutFakes();
+    const disposeError = new Error("dispose failed");
+    session.dispose = vi.fn(() => Promise.reject(disposeError));
+    const wrapper = mountCanvas({ controller });
+    await nextTick();
+    const pendingFrame = [...frames.keys()][0];
+    expect(pendingFrame).toBeDefined();
+    expect(canvas.raw.setDimensions).not.toHaveBeenCalled();
+
+    const unhandled: unknown[] = [];
+    const unhandledListener = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", unhandledListener);
+    await wrapper.unmount();
+    await flushPromises();
+    process.off("unhandledRejection", unhandledListener);
+
+    expect(cancelAnimationFrameMock).toHaveBeenCalledWith(pendingFrame);
+    expect(frames.size).toBe(0);
+    flushAnimationFrames();
+    expect(canvas.raw.setDimensions).not.toHaveBeenCalled();
+    expect(unhandled).toEqual([]);
   });
 
   it("updates disabled interaction and exact upper-canvas accessibility attributes", async () => {
@@ -449,6 +697,17 @@ describe("FabricCardCanvas", () => {
     rect = { width: 0, height: 0 };
     observer.callback([], observer as unknown as ResizeObserver);
     flushAnimationFrames();
+    expect(canvas.raw.setDimensions).toHaveBeenCalledTimes(2);
+
+    for (const invalidRect of [
+      { width: Number.NaN, height: 100 },
+      { width: Number.POSITIVE_INFINITY, height: 100 },
+      { width: 100, height: Number.POSITIVE_INFINITY },
+    ]) {
+      rect = invalidRect;
+      observer.callback([], observer as unknown as ResizeObserver);
+      flushAnimationFrames();
+    }
     expect(canvas.raw.setDimensions).toHaveBeenCalledTimes(2);
 
     await wrapper.unmount();
