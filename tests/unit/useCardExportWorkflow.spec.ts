@@ -275,6 +275,155 @@ describe("useCardExportWorkflow", () => {
     expect(workflow2.copyUnavailableReason.value).toBe("");
   });
 
+  it("requires the exact owner status object for copy/save continuation", async () => {
+    const copyAfterExport = createEditor();
+    const copyExportServices = createServices();
+    const copyExport = deferred<Blob>();
+    copyExportServices.exportCardPng = vi.fn(() => copyExport.promise);
+    const copyWorkflow = useCardExportWorkflow(copyAfterExport.editor, {
+      services: copyExportServices,
+    });
+    const copyOperation = copyWorkflow.copyPng();
+    copyExport.resolve(new Blob(["png"], { type: "image/png" }));
+    replaceAction(copyAfterExport.statusRef, "copy");
+    await expect(copyOperation).resolves.toBe(false);
+    expect(copyExportServices.copyCardPng).not.toHaveBeenCalled();
+
+    const copyAfterClipboard = createEditor();
+    const copyClipboardServices = createServices();
+    const copyResult = deferred<"copied" | "unsupported" | "denied">();
+    copyClipboardServices.copyCardPng = vi.fn(() => copyResult.promise);
+    const copyClipboardWorkflow = useCardExportWorkflow(
+      copyAfterClipboard.editor,
+      { services: copyClipboardServices },
+    );
+    const copyClipboardOperation = copyClipboardWorkflow.copyPng();
+    copyResult.resolve("copied");
+    replaceAction(copyAfterClipboard.statusRef, "copy");
+    await expect(copyClipboardOperation).resolves.toBe(false);
+    expect(copyAfterClipboard.editor.finishAction).not.toHaveBeenCalled();
+
+    const saveAfterExport = createEditor();
+    const saveExportServices = createServices();
+    const saveExport = deferred<Blob>();
+    saveExportServices.exportCardPng = vi.fn(() => saveExport.promise);
+    const filename = vi.fn(() => "same-action.png");
+    const saveWorkflow = useCardExportWorkflow(saveAfterExport.editor, {
+      services: saveExportServices,
+      filename,
+    });
+    const saveOperation = saveWorkflow.savePng();
+    saveExport.resolve(new Blob(["png"], { type: "image/png" }));
+    replaceAction(saveAfterExport.statusRef, "export");
+    await expect(saveOperation).resolves.toBe(false);
+    expect(filename).not.toHaveBeenCalled();
+    expect(saveExportServices.downloadCardPng).not.toHaveBeenCalled();
+
+    const saveDuringFilename = createEditor();
+    const saveDuringFilenameServices = createServices();
+    const saveDuringFilenameWorkflow = useCardExportWorkflow(
+      saveDuringFilename.editor,
+      {
+        services: saveDuringFilenameServices,
+        filename: () => {
+          replaceAction(saveDuringFilename.statusRef, "export");
+          return "replaced.png";
+        },
+      },
+    );
+    await expect(saveDuringFilenameWorkflow.savePng()).resolves.toBe(false);
+    expect(saveDuringFilenameServices.downloadCardPng).not.toHaveBeenCalled();
+    expect(saveDuringFilename.editor.finishAction).not.toHaveBeenCalled();
+  });
+
+  it("forwards fresh default and partial service wrappers without import-time globals", async () => {
+    vi.resetModules();
+    const blob = new Blob(["png"], { type: "image/png" });
+    const capability = vi.fn(() => true);
+    const exported = vi.fn(async () => blob);
+    const copied = vi.fn(async () => "copied" as const);
+    const downloaded = vi.fn();
+    class MockCardDownloadError extends Error {}
+    vi.doMock("@/editor/clipboard", () => ({
+      isPngClipboardAvailable: capability,
+      copyCardPng: copied,
+    }));
+    vi.doMock("@/fabric/exportCard", () => ({
+      exportCardPng: exported,
+    }));
+    vi.doMock("@/editor/download", () => ({
+      CardDownloadError: MockCardDownloadError,
+      downloadCardPng: downloaded,
+    }));
+    const documentDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "document",
+    );
+    const urlDescriptor = Object.getOwnPropertyDescriptor(globalThis, "URL");
+    const originalURL = globalThis.URL;
+    let globalReads = 0;
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      get() {
+        globalReads += 1;
+        throw new Error("document read during import");
+      },
+    });
+    Object.defineProperty(globalThis, "URL", {
+      configurable: true,
+      get() {
+        const stack = new Error().stack ?? "";
+        if (/src[\\/]composables[\\/]/i.test(stack)) {
+          globalReads += 1;
+          throw new Error("URL read during import");
+        }
+        return originalURL;
+      },
+    });
+
+    try {
+      const freshModule = await import("@/composables/useCardExportWorkflow");
+      const fake = createEditor();
+      const workflow = freshModule.useCardExportWorkflow(fake.editor);
+      expect(capability).toHaveBeenCalledTimes(1);
+      await expect(workflow.copyPng()).resolves.toBe(true);
+      await expect(workflow.savePng()).resolves.toBe(true);
+      expect(exported).toHaveBeenCalledWith(fake.document, fake.template);
+      expect(copied).toHaveBeenCalledWith(blob);
+      expect(downloaded).toHaveBeenCalledWith(blob, "members-card-current.png");
+
+      const partialExport = vi.fn(async () => blob);
+      const partialFake = createEditor();
+      const partialWorkflow = freshModule.useCardExportWorkflow(
+        partialFake.editor,
+        {
+          services: { exportCardPng: partialExport },
+        },
+      );
+      await expect(partialWorkflow.savePng()).resolves.toBe(true);
+      expect(partialExport).toHaveBeenCalledWith(
+        partialFake.document,
+        partialFake.template,
+      );
+      expect(globalReads).toBe(0);
+    } finally {
+      if (documentDescriptor === undefined) {
+        Reflect.deleteProperty(globalThis, "document");
+      } else {
+        Object.defineProperty(globalThis, "document", documentDescriptor);
+      }
+      if (urlDescriptor === undefined) {
+        Reflect.deleteProperty(globalThis, "URL");
+      } else {
+        Object.defineProperty(globalThis, "URL", urlDescriptor);
+      }
+      vi.doUnmock("@/editor/clipboard");
+      vi.doUnmock("@/fabric/exportCard");
+      vi.doUnmock("@/editor/download");
+      vi.resetModules();
+    }
+  });
+
   it("saves with exact snapshots and default or injected filenames", async () => {
     for (const filename of [undefined, vi.fn(() => "custom.png")]) {
       const fake = createEditor();
@@ -361,11 +510,16 @@ describe("useCardExportWorkflow", () => {
 
   it("requires successful finish transitions and preserves frozen inputs/options", async () => {
     const fake = createEditor();
+    Object.freeze(fake.editor);
+    Object.freeze(fake.document);
+    Object.freeze(fake.template);
     const services = Object.freeze(createServices());
     const options = Object.freeze({ services });
     const workflow = useCardExportWorkflow(fake.editor, options);
     vi.mocked(fake.editor.finishAction).mockReturnValue(false);
     await expect(workflow.copyPng()).resolves.toBe(false);
+    expect(workflow.copyUnavailableReason.value).toBe("");
+    Reflect.set(workflow.copyUnavailableReason, "value", "mutated");
     expect(workflow.copyUnavailableReason.value).toBe("");
 
     vi.mocked(fake.editor.finishAction).mockReturnValue(false);

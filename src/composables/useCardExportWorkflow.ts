@@ -58,12 +58,17 @@ const CLIPBOARD_FAILED = "复制失败，请使用“保存 PNG”。";
 const RENDER_FAILED = "图片导出失败，请重试。";
 const DOWNLOAD_FAILED = "图片下载失败，请重试。";
 
-function isMatchingAction(
+function isOwnerAction(
   editor: CardExportEditor,
   action: EditorAction,
+  ownerStatus: EditorStatus,
 ): boolean {
   const status = editor.status.value;
-  return status.state === "working" && status.action === action;
+  return (
+    status === ownerStatus &&
+    status.state === "working" &&
+    status.action === action
+  );
 }
 
 function createServices(
@@ -101,8 +106,12 @@ export function useCardExportWorkflow(
   const canExport = computed(() => editor.canExport.value);
   const canCopy = computed(() => editor.canCopy.value);
 
-  const failCopy = (code: ExportErrorCode, message: string): boolean => {
-    if (!isMatchingAction(editor, "copy")) {
+  const failCopy = (
+    ownerStatus: EditorStatus,
+    code: ExportErrorCode,
+    message: string,
+  ): boolean => {
+    if (!isOwnerAction(editor, "copy", ownerStatus)) {
       return false;
     }
     const transitioned = editor.failAction("copy", code, message);
@@ -117,15 +126,16 @@ export function useCardExportWorkflow(
       return false;
     }
 
+    const ownerStatus = editor.status.value;
     const document = editor.document.value;
     const template = editor.template.value;
     let blob: Blob;
     try {
       blob = await services.exportCardPng(document, template);
     } catch {
-      return failCopy("clipboard-failed", CLIPBOARD_FAILED);
+      return failCopy(ownerStatus, "clipboard-failed", CLIPBOARD_FAILED);
     }
-    if (!isMatchingAction(editor, "copy")) {
+    if (!isOwnerAction(editor, "copy", ownerStatus)) {
       return false;
     }
 
@@ -133,14 +143,17 @@ export function useCardExportWorkflow(
     try {
       result = await services.copyCardPng(blob);
     } catch {
-      return failCopy("clipboard-failed", CLIPBOARD_FAILED);
+      return failCopy(ownerStatus, "clipboard-failed", CLIPBOARD_FAILED);
     }
-    if (!isMatchingAction(editor, "copy")) {
+    if (!isOwnerAction(editor, "copy", ownerStatus)) {
       return false;
     }
 
     if (result === "copied") {
-      if (!editor.finishAction("copy", "图片已复制。")) {
+      if (
+        !isOwnerAction(editor, "copy", ownerStatus) ||
+        !editor.finishAction("copy", "图片已复制。")
+      ) {
         return false;
       }
       unavailableReason.value = "";
@@ -148,9 +161,13 @@ export function useCardExportWorkflow(
     }
     if (result === "unsupported") {
       editor.setClipboardAvailable(false);
-      return failCopy("clipboard-unsupported", CLIPBOARD_UNAVAILABLE);
+      return failCopy(
+        ownerStatus,
+        "clipboard-unsupported",
+        CLIPBOARD_UNAVAILABLE,
+      );
     }
-    return failCopy("clipboard-denied", CLIPBOARD_DENIED);
+    return failCopy(ownerStatus, "clipboard-denied", CLIPBOARD_DENIED);
   };
 
   const savePng = async (): Promise<boolean> => {
@@ -158,18 +175,19 @@ export function useCardExportWorkflow(
       return false;
     }
 
+    const ownerStatus = editor.status.value;
     const document = editor.document.value;
     const template = editor.template.value;
     let blob: Blob;
     try {
       blob = await services.exportCardPng(document, template);
     } catch {
-      if (isMatchingAction(editor, "export")) {
+      if (isOwnerAction(editor, "export", ownerStatus)) {
         editor.failAction("export", "render-failed", RENDER_FAILED);
       }
       return false;
     }
-    if (!isMatchingAction(editor, "export")) {
+    if (!isOwnerAction(editor, "export", ownerStatus)) {
       return false;
     }
 
@@ -177,9 +195,8 @@ export function useCardExportWorkflow(
     try {
       filename =
         options?.filename?.(template) ?? `members-card-${template.id}.png`;
-      services.downloadCardPng(blob, filename);
     } catch (error) {
-      if (isMatchingAction(editor, "export")) {
+      if (isOwnerAction(editor, "export", ownerStatus)) {
         const message =
           error instanceof CardDownloadError && error.message.trim() !== ""
             ? error.message
@@ -189,7 +206,24 @@ export function useCardExportWorkflow(
       return false;
     }
 
-    if (!isMatchingAction(editor, "export")) {
+    if (!isOwnerAction(editor, "export", ownerStatus)) {
+      return false;
+    }
+
+    try {
+      services.downloadCardPng(blob, filename);
+    } catch (error) {
+      if (isOwnerAction(editor, "export", ownerStatus)) {
+        const message =
+          error instanceof CardDownloadError && error.message.trim() !== ""
+            ? error.message
+            : DOWNLOAD_FAILED;
+        editor.failAction("export", "download-failed", message);
+      }
+      return false;
+    }
+
+    if (!isOwnerAction(editor, "export", ownerStatus)) {
       return false;
     }
     return editor.finishAction("export", "PNG 已保存。");
