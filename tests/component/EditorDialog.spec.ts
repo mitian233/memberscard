@@ -156,6 +156,28 @@ describe("EditorDialog", () => {
     expect(wrapper.emitted("close")).toEqual([[]]);
   });
 
+  it("excludes hidden ancestors from focus candidates", async () => {
+    const wrapper = mountDialog(
+      { open: true },
+      {
+        default:
+          '<div aria-hidden="true"><button class="hidden-target">Hidden</button></div><button class="visible-target">Visible</button>',
+      },
+    );
+    await nextTick();
+    const close = wrapper.get(".editor-dialog-close").element;
+    const visible = wrapper.get(".visible-target").element;
+    close.focus();
+    const tab = new KeyboardEvent("keydown", {
+      key: "Tab",
+      bubbles: true,
+      cancelable: true,
+    });
+    wrapper.get('[role="dialog"]').element.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(visible);
+  });
+
   it("closes only for backdrop clicks and supports the no-target focus fallback", async () => {
     const wrapper = mountDialog({ open: true }, { default: "Body" });
     await nextTick();
@@ -225,6 +247,19 @@ describe("EditorDialog", () => {
     unmountOpener.remove();
   });
 
+  it("restores a captured opener when close is followed by same-tick unmount", async () => {
+    const opener = document.createElement("button");
+    document.body.append(opener);
+    opener.focus();
+    const wrapper = mountDialog({ open: true });
+    await nextTick();
+    await wrapper.setProps({ open: false });
+    await wrapper.unmount();
+    await nextTick();
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
+
   it("fresh-imports without requiring a document global", async () => {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, "document");
     let reads = 0;
@@ -264,6 +299,9 @@ describe("EditorDialog", () => {
     );
     expect(scopedStyle).toMatch(
       /\.editor-dialog-close:focus-visible[^}]*\{[^}]*outline:\s*(?!none\b)[^;}]+/i,
+    );
+    expect(scopedStyle).toMatch(
+      /\.editor-dialog-actions\s*:deep\(button\)[^}]*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/i,
     );
     expect(scopedStyle).toMatch(/position:\s*fixed/i);
     expect(scopedStyle).toMatch(/max-height:[^;]*100dvh/i);

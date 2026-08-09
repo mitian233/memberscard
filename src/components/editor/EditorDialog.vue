@@ -27,6 +27,7 @@ const closeButtonRef = ref<HTMLButtonElement | null>(null);
 let opener: HTMLElement | null = null;
 let mounted = true;
 let closeSent = false;
+let pendingRestore = false;
 
 function getDocument(): Document | null {
   try {
@@ -48,6 +49,7 @@ function captureOpener(): void {
 function restoreFocus(): void {
   const previousOpener = opener;
   opener = null;
+  pendingRestore = false;
   if (previousOpener === null || !previousOpener.isConnected) {
     return;
   }
@@ -78,13 +80,20 @@ function requestClose(): void {
   emit("close");
 }
 
-function isVisible(target: HTMLElement): boolean {
-  if (target.hidden || target.getAttribute("aria-hidden") === "true") {
-    return false;
+function isVisible(target: HTMLElement, panel: HTMLElement): boolean {
+  let current: HTMLElement | null = target;
+  while (current !== null && current !== panel) {
+    if (current.hidden || current.getAttribute("aria-hidden") === "true") {
+      return false;
+    }
+    const view: Window | null = current.ownerDocument.defaultView;
+    const style = view?.getComputedStyle(current);
+    if (style?.display === "none" || style?.visibility === "hidden") {
+      return false;
+    }
+    current = current.parentElement;
   }
-  const view = target.ownerDocument.defaultView;
-  const style = view?.getComputedStyle(target);
-  return style?.display !== "none" && style?.visibility !== "hidden";
+  return current === panel;
 }
 
 function isDisabled(target: HTMLElement): boolean {
@@ -100,7 +109,7 @@ function focusTargets(panel: HTMLElement): HTMLElement[] {
     ),
   );
   return candidates.filter((target) => {
-    if (isDisabled(target) || !isVisible(target)) {
+    if (target === panel || isDisabled(target) || !isVisible(target, panel)) {
       return false;
     }
     if (target.hasAttribute("tabindex")) {
@@ -161,12 +170,14 @@ watch(
   () => props.open,
   (open, previous) => {
     if (open) {
+      pendingRestore = false;
       closeSent = false;
       captureOpener();
       void focusCloseButton();
       return;
     }
     if (previous === true) {
+      pendingRestore = true;
       void nextTick().then(() => {
         if (mounted) {
           restoreFocus();
@@ -178,7 +189,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
-  if (props.open) {
+  if (props.open || pendingRestore) {
     restoreFocus();
   }
   mounted = false;
@@ -225,6 +236,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .editor-dialog-backdrop {
+  box-sizing: border-box;
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -233,13 +245,16 @@ onBeforeUnmount(() => {
   padding: max(1rem, env(safe-area-inset-top))
     max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
     max(1rem, env(safe-area-inset-left));
+  overflow: auto;
   background: rgb(15 23 42 / 0.62);
 }
 
 .editor-dialog-panel {
+  box-sizing: border-box;
   width: min(100%, 40rem);
-  max-height: calc(
-    100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+  max-height: min(
+    100%,
+    calc(100dvh - 2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom))
   );
   overflow: auto;
   padding: max(1rem, env(safe-area-inset-top))
