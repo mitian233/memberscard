@@ -53,18 +53,62 @@ export interface CardFieldDefinition {
   top: number;
   fontSize: number;
   fontFamily?: string;
-  fontWeight?: string;
+  fontWeight: 'normal' | 'bold';
+  fill: string;
   minSize?: number;
   maxWidth?: number;
-  [key: string]: unknown;
 }
 
-export interface CardStaticObjectDefinition {
+interface CardStaticObjectBase {
   role: 'static';
-  id?: string;
-  type?: string;
-  [key: string]: unknown;
+  id: string;
 }
+
+export interface CardStaticRectDefinition extends CardStaticObjectBase {
+  type: 'rect';
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  fill: string;
+  radius?: number;
+}
+
+export interface CardStaticCircleDefinition extends CardStaticObjectBase {
+  type: 'circle';
+  left: number;
+  top: number;
+  radius: number;
+  fill: string;
+}
+
+export interface CardStaticTextDefinition extends CardStaticObjectBase {
+  type: 'text';
+  left: number;
+  top: number;
+  text: string;
+  fontSize: number;
+  fontFamily: string;
+  fontWeight: 'normal' | 'bold';
+  fill: string;
+  letterSpacing?: number;
+}
+
+export interface CardStaticImageDefinition extends CardStaticObjectBase {
+  type: 'image';
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  asset: 'background' | 'logo' | 'avatarFrame';
+  radius?: number;
+}
+
+export type CardStaticObjectDefinition =
+  | CardStaticRectDefinition
+  | CardStaticCircleDefinition
+  | CardStaticTextDefinition
+  | CardStaticImageDefinition;
 
 export interface CardTemplateDefinition {
   id: TemplateId;
