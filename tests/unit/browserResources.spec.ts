@@ -43,16 +43,32 @@ afterEach(() => {
 });
 
 describe("browser Fabric resources", () => {
-  it("imports without DOM work and defers the injected measurement context until measurement", async () => {
-    const createElement = vi.spyOn(document, "createElement");
-    const imported = await import("@/fabric/browserResources");
-    browserResources = imported;
-    const createMeasurementContext = vi.fn(() => null);
+  it("fresh-imports without touching any document property and defers injected DOM work", async () => {
+    vi.resetModules();
+    const throwingDocument = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error("document accessed during browserResources import");
+        },
+        has() {
+          throw new Error("document inspected during browserResources import");
+        },
+      },
+    );
+    vi.stubGlobal("document", throwingDocument);
 
-    imported.createBrowserTextMeasurer({ createMeasurementContext });
+    try {
+      const imported = await import("@/fabric/browserResources");
+      browserResources = imported;
+      const createMeasurementContext = vi.fn(() => null);
 
-    expect(createElement).not.toHaveBeenCalled();
-    expect(createMeasurementContext).not.toHaveBeenCalled();
+      imported.createBrowserTextMeasurer({ createMeasurementContext });
+
+      expect(createMeasurementContext).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("loads images through public FabricImage.fromURL and preserves the returned instance", async () => {
@@ -85,6 +101,9 @@ describe("browser Fabric resources", () => {
     expect(syncLoad).not.toHaveBeenCalled();
 
     const syncFailure = syncLoader.loadImage(" avatar.png");
+    await expect(syncFailure).rejects.toBeInstanceOf(
+      imported.CardImageLoadError,
+    );
     await expect(syncFailure).rejects.toMatchObject({
       source: " avatar.png",
       cause: syncCause,
@@ -102,6 +121,9 @@ describe("browser Fabric resources", () => {
     );
     const asyncFailure = asyncLoader.loadImage("/remote.png");
 
+    await expect(asyncFailure).rejects.toBeInstanceOf(
+      imported.CardImageLoadError,
+    );
     await expect(asyncFailure).rejects.toMatchObject({
       source: "/remote.png",
       cause: asyncCause,
@@ -169,6 +191,28 @@ describe("browser Fabric resources", () => {
       code: "font-fallback",
       message: degradedMessage,
     });
+
+    const mixedLoad = vi.fn(async (font: string) => {
+      if (font.includes("Reject")) throw new Error("mixed rejection");
+      if (font.includes("Empty")) return [];
+      return [{} as FontFace];
+    });
+    const mixedFonts = imported.createBrowserAssetLoader(
+      imageEnvironment({ fonts: { load: mixedLoad } }),
+    );
+    await expect(
+      mixedFonts.waitForFonts(["Ready", "Reject", "Empty"]),
+    ).resolves.toEqual({
+      state: "degraded",
+      code: "font-fallback",
+      message: degradedMessage,
+    });
+    expect(mixedLoad).toHaveBeenCalledTimes(3);
+    expect(mixedLoad.mock.calls.map(([font]) => font)).toEqual([
+      '1em "Ready"',
+      '1em "Reject"',
+      '1em "Empty"',
+    ]);
   });
 
   it("lazily caches one measurement context and sets escaped safe font strings on every call", async () => {
@@ -275,6 +319,26 @@ describe("browser Fabric resources", () => {
       recoverable: false,
       message: "卡片背景加载失败，请刷新后重试。",
     });
+
+    const exactSources = [
+      document.avatar.src,
+      currentCardTemplate.assets.logo,
+      currentCardTemplate.assets.background,
+    ];
+    for (const source of exactSources) {
+      for (const nearMiss of [
+        `prefix-${source}`,
+        `${source}-suffix`,
+        `before-${source}-after`,
+      ]) {
+        await expect(
+          resourceStatus(new imported.CardImageLoadError(nearMiss, "raw")),
+        ).resolves.toMatchObject({
+          state: "error",
+          code: "font-load-failed",
+        });
+      }
+    }
 
     const unknown = new imported.CardImageLoadError(
       "unknown.png",
