@@ -6,7 +6,11 @@ import type {
   StaticCanvas,
 } from "fabric";
 
-import type { CardField, ResourceStatus } from "@/types/card";
+import type {
+  CardField,
+  FieldValidationError,
+  ResourceStatus,
+} from "@/types/card";
 
 export interface CanvasAdapter {
   readonly raw: Canvas | StaticCanvas;
@@ -49,6 +53,8 @@ export interface FabricCardScene {
   avatar: FabricImage;
   fields: Partial<Record<CardField, IText>>;
   objects: FabricObject[];
+  resourceStatus: ResourceStatus;
+  fieldErrors: FieldValidationError[];
   disposeObjectListeners(): void;
 }
 
