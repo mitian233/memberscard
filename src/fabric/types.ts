@@ -24,6 +24,10 @@ export interface CanvasAdapter {
   dispose(): void | Promise<void>;
 }
 
+export interface InteractiveCanvasAdapter extends CanvasAdapter {
+  readonly raw: Canvas;
+}
+
 export interface ExportCanvasAdapter extends CanvasAdapter {
   readonly raw: StaticCanvas;
   toBlob(options: { format: "png"; multiplier: number }): Promise<Blob | null>;

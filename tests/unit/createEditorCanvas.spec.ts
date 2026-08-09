@@ -5,6 +5,7 @@ import {
   createEditorCanvas,
   type InteractiveCanvasFactory,
 } from "@/fabric/createEditorCanvas";
+import type { InteractiveCanvasAdapter } from "@/fabric/types";
 
 const makeRawCanvas = () => {
   const rawMethods = {
@@ -28,7 +29,10 @@ describe("createEditorCanvas", () => {
     const element = document.createElement("canvas");
     const factory = vi.fn<InteractiveCanvasFactory>(() => raw);
 
-    const adapter = createEditorCanvas(element, factory);
+    const adapter: InteractiveCanvasAdapter = createEditorCanvas(
+      element,
+      factory,
+    );
 
     expect(factory).toHaveBeenCalledTimes(1);
     expect(factory).toHaveBeenCalledWith(element, {

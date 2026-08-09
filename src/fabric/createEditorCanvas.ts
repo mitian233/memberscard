@@ -1,6 +1,6 @@
 import { Canvas } from "fabric";
 
-import type { CanvasAdapter } from "./types";
+import type { InteractiveCanvasAdapter } from "./types";
 
 export type EditorCanvasOptions = NonNullable<
   ConstructorParameters<typeof Canvas>[1]
@@ -20,7 +20,7 @@ const defaultFactory: InteractiveCanvasFactory = (element, options) =>
 export function createEditorCanvas(
   element: HTMLCanvasElement,
   factory: InteractiveCanvasFactory = defaultFactory,
-): CanvasAdapter {
+): InteractiveCanvasAdapter {
   if (element == null) {
     throw new TypeError("An HTMLCanvasElement is required");
   }
