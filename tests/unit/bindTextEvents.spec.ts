@@ -302,6 +302,187 @@ describe("bindTextEvents", () => {
     disposer();
   });
 
+  it("skips a missing definition even when that field fires changed", () => {
+    const canvas = createCanvas();
+    const name = createField("name");
+    const birthday = createField("birthday");
+    const onDocumentPatch = vi.fn();
+    const onFieldValidation = vi.fn();
+    const disposer = bindTextEvents(
+      canvas,
+      { name, birthday },
+      {
+        template: createTemplate("name"),
+        measureText: createMeasurer(),
+        keyTarget: createKeyTarget(),
+        onDocumentPatch,
+        onFieldValidation,
+        onEditCancel: vi.fn(),
+      },
+    );
+
+    birthday.set({ text: "birthday changed" });
+    birthday.fire("changed");
+
+    expect(onDocumentPatch).not.toHaveBeenCalled();
+    expect(onFieldValidation).not.toHaveBeenCalled();
+    expect(canvas.renderCount).toBe(0);
+
+    disposer();
+  });
+
+  it("clears an exact constrained-field error after a later valid change", () => {
+    const canvas = createCanvas();
+    const field = createField("long", { fontSize: 40 });
+    const validation = vi.fn();
+    const disposer = bindTextEvents(
+      canvas,
+      { name: field },
+      {
+        template: createTemplate("name", {
+          fontSize: 40,
+          minSize: 20,
+          maxWidth: 50,
+        }),
+        measureText: vi.fn((text, options) => text.length * options.fontSize),
+        keyTarget: createKeyTarget(),
+        onDocumentPatch: vi.fn(),
+        onFieldValidation: validation,
+        onEditCancel: vi.fn(),
+      },
+    );
+
+    field.fire("changed");
+    expect(validation).toHaveBeenNthCalledWith(1, "name", {
+      field: "name",
+      code: "text-too-wide",
+      message: "内容过长，请缩短后重试。",
+    });
+
+    field.set({ text: "a" });
+    field.fire("changed");
+
+    expect(validation).toHaveBeenNthCalledWith(2, "name", null);
+    expect(field.fontSize).toBe(40);
+    expect(canvas.renderCount).toBe(2);
+
+    disposer();
+  });
+
+  it("leaves Escape editing state untouched when restored text measurement fails", () => {
+    const canvas = createCanvas();
+    const field = createField("before", { fontSize: 40 });
+    const target = createKeyTarget();
+    const onDocumentPatch = vi.fn();
+    const onFieldValidation = vi.fn();
+    const onEditCancel = vi.fn();
+    const measureText = vi.fn(() => {
+      throw new RangeError("measured width is invalid");
+    });
+    const disposer = bindTextEvents(
+      canvas,
+      { name: field },
+      {
+        template: createTemplate("name", {
+          fontSize: 40,
+          minSize: 20,
+          maxWidth: 100,
+        }),
+        measureText,
+        keyTarget: target,
+        onDocumentPatch,
+        onFieldValidation,
+        onEditCancel,
+      },
+    );
+
+    field.enterEditing();
+    field.set({ text: "edited" });
+    const textBeforeEscape = field.text;
+    const fontSizeBeforeEscape = field.fontSize;
+    const setCoords = vi.spyOn(field, "setCoords");
+    const setCoordsBeforeEscape = setCoords.mock.calls.length;
+    const event = new KeyboardEvent("keydown", {
+      key: "Escape",
+      cancelable: true,
+    });
+    const preventDefault = vi.spyOn(event, "preventDefault");
+
+    expect(() => target.dispatchEvent(event)).toThrow(RangeError);
+
+    expect(measureText).toHaveBeenCalled();
+    expect(field.text).toBe(textBeforeEscape);
+    expect(field.fontSize).toBe(fontSizeBeforeEscape);
+    expect(field.isEditing).toBe(true);
+    expect(setCoords).toHaveBeenCalledTimes(setCoordsBeforeEscape);
+    expect(onDocumentPatch).not.toHaveBeenCalled();
+    expect(onFieldValidation).not.toHaveBeenCalled();
+    expect(onEditCancel).not.toHaveBeenCalled();
+    expect(canvas.renderCount).toBe(0);
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+
+    disposer();
+  });
+
+  it("cancels active fields in binding order, preserving the later snapshot", () => {
+    const canvas = createCanvas();
+    const first = createField("first");
+    const second = createField("second");
+    const template = createTemplate("name");
+    template.fields.nameEn = {
+      ...template.fields.name!,
+      field: "nameEn",
+      top: 10,
+    };
+    const target = createKeyTarget();
+    const patches: Array<{ field: CardField; value: string }> = [];
+    const onEditCancel = vi.fn();
+    const disposer = bindTextEvents(
+      canvas,
+      { name: first, nameEn: second },
+      {
+        template,
+        measureText: createMeasurer(),
+        keyTarget: target,
+        onDocumentPatch: (patch) => {
+          if (patch.type === "field") {
+            patches.push({ field: patch.field, value: patch.value });
+          }
+        },
+        onFieldValidation: vi.fn(),
+        onEditCancel,
+      },
+    );
+
+    first.enterEditing();
+    first.set({ text: "first edited" });
+    second.enterEditing();
+    second.set({ text: "second edited" });
+
+    pressKey(target, "Escape");
+
+    expect(first.text).toBe("first");
+    expect(first.isEditing).toBe(false);
+    expect(second.text).toBe("second edited");
+    expect(second.isEditing).toBe(true);
+    expect(patches).toEqual([{ field: "name", value: "first" }]);
+    expect(onEditCancel).toHaveBeenNthCalledWith(1, "name", "first");
+    expect(canvas.renderCount).toBe(1);
+
+    pressKey(target, "Escape");
+
+    expect(second.text).toBe("second");
+    expect(second.isEditing).toBe(false);
+    expect(patches).toEqual([
+      { field: "name", value: "first" },
+      { field: "nameEn", value: "second" },
+    ]);
+    expect(onEditCancel).toHaveBeenNthCalledWith(2, "nameEn", "second");
+    expect(canvas.renderCount).toBe(2);
+
+    disposer();
+  });
+
   it("propagates an invalid measured width before side effects", () => {
     const canvas = createCanvas();
     const field = createField("bad");
