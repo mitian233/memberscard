@@ -213,7 +213,7 @@ describe("card canvas controller", () => {
     expect(fixtures.measureText).not.toHaveBeenCalled();
   });
 
-  it("calls browser resource default factories exactly once when dependencies are omitted", async () => {
+  it("resolves browser defaults only when omitted and keeps resource operations lazy", async () => {
     vi.resetModules();
     const defaultAssets: AssetLoader = {
       loadImage: vi.fn(),
@@ -237,11 +237,32 @@ describe("card canvas controller", () => {
     try {
       const imported = await import("@/fabric/cardCanvasController");
       cardCanvasControllerModule = imported;
+
+      const injectedAssets: AssetLoader = {
+        loadImage: vi.fn(),
+        waitForFonts: vi.fn(),
+      };
+      const injectedMeasure = vi.fn<TextMeasurer>();
+      const injectedController = imported.createCardCanvasController({
+        assets: injectedAssets,
+        measureText: injectedMeasure,
+      });
+
+      expect(injectedController.measureText).toBe(injectedMeasure);
+      expect(createBrowserAssetLoader).toHaveBeenCalledTimes(0);
+      expect(createBrowserTextMeasurer).toHaveBeenCalledTimes(0);
+      expect(injectedAssets.loadImage).not.toHaveBeenCalled();
+      expect(injectedAssets.waitForFonts).not.toHaveBeenCalled();
+      expect(injectedMeasure).not.toHaveBeenCalled();
+
       const controller = imported.createCardCanvasController();
 
       expect(createBrowserAssetLoader).toHaveBeenCalledTimes(1);
       expect(createBrowserTextMeasurer).toHaveBeenCalledTimes(1);
       expect(controller.measureText).toBe(defaultMeasure);
+      expect(defaultAssets.loadImage).not.toHaveBeenCalled();
+      expect(defaultAssets.waitForFonts).not.toHaveBeenCalled();
+      expect(defaultMeasure).not.toHaveBeenCalled();
     } finally {
       vi.doUnmock("@/fabric/browserResources");
       vi.resetModules();
