@@ -1,8 +1,9 @@
-import { FabricImage } from "fabric";
+import { FabricImage, Rect } from "fabric";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createCardDocument } from "@/editor/cardDocument";
 import { renderCardDocument } from "@/fabric/renderCardDocument";
+import * as objectFactories from "@/fabric/objectFactories";
 import type {
   AssetLoader,
   CanvasAdapter,
@@ -155,6 +156,11 @@ describe("renderCardDocument", () => {
     ]);
     expect(scene.avatar).toBe(scene.objects[3]);
     expect(scene.fields.name).toBe(scene.objects[12]);
+    expect(scene.fields.name?.text).toBe(document.name);
+    expect(scene.avatar.left).toBe(document.avatar.left);
+    expect(scene.avatar.top).toBe(document.avatar.top);
+    expect(scene.avatar.scaleX).toBe(document.avatar.scale);
+    expect(scene.avatar.scaleY).toBe(document.avatar.scale);
     expect(scene.resourceStatus).toEqual({ state: "ready" });
     expect(scene.fieldErrors).toEqual([]);
     expect(canvas.adapter.add).toHaveBeenCalledTimes(1);
@@ -235,6 +241,71 @@ describe("renderCardDocument", () => {
     expect(options.measureText).toHaveBeenCalled();
   });
 
+  it("passes the fitted size to the text factory at construction time", async () => {
+    const canvas = createCanvas();
+    const assets = createAssets();
+    const template: CardTemplateDefinition = {
+      ...legacyCardTemplate,
+      fields: {
+        name: {
+          ...legacyCardTemplate.fields.name!,
+          fontSize: 60,
+          minSize: 20,
+          maxWidth: 300,
+        },
+      },
+      staticObjects: [legacyCardTemplate.staticObjects[0]],
+    };
+    const document = {
+      ...createCardDocument(template),
+      name: "1234567890",
+    };
+    const factorySpy = vi.spyOn(objectFactories, "createEditableFabricText");
+    const options = createOptions(assets);
+    options.measureText = vi.fn((_text, value) => value.fontSize * 10);
+
+    await renderCardDocument(canvas.adapter, document, template, options);
+
+    expect(factorySpy).toHaveBeenCalledWith(
+      expect.objectContaining({ fontSize: 30 }),
+      "1234567890",
+      "interactive",
+    );
+  });
+
+  it("shrinks a fitting field without reporting a validation error", async () => {
+    const canvas = createCanvas();
+    const assets = createAssets();
+    const template: CardTemplateDefinition = {
+      ...legacyCardTemplate,
+      fields: {
+        name: {
+          ...legacyCardTemplate.fields.name!,
+          fontSize: 60,
+          minSize: 20,
+          maxWidth: 300,
+        },
+      },
+      staticObjects: [legacyCardTemplate.staticObjects[0]],
+    };
+    const document = {
+      ...createCardDocument(template),
+      name: "1234567890",
+    };
+    const options = createOptions(assets);
+    options.measureText = vi.fn((_text, value) => value.fontSize * 10);
+
+    const scene = await renderCardDocument(
+      canvas.adapter,
+      document,
+      template,
+      options,
+    );
+
+    expect(scene.fields.name?.fontSize).toBe(30);
+    expect(scene.fieldErrors).toEqual([]);
+  });
+
   it("disposes the previous scene once after a successful replacement", async () => {
     const canvas = createCanvas();
     const assets = createAssets();
@@ -248,6 +319,14 @@ describe("renderCardDocument", () => {
     const disposeSpies = first.objects.map((object) =>
       vi.spyOn(object, "dispose"),
     );
+    const background = first.objects.find(
+      (object) =>
+        (object.data as { role?: string; id?: string }).id === "background",
+    );
+    if (!background?.clipPath) {
+      throw new Error("expected the background to have a clip path");
+    }
+    const clipDisposeSpy = vi.spyOn(background.clipPath, "dispose");
     const listenerSpy = vi.spyOn(first, "disposeObjectListeners");
 
     await renderCardDocument(
@@ -261,6 +340,7 @@ describe("renderCardDocument", () => {
     for (const spy of disposeSpies) {
       expect(spy).toHaveBeenCalledTimes(1);
     }
+    expect(clipDisposeSpy).toHaveBeenCalledTimes(1);
     expect(canvas.adapter.clear).toHaveBeenCalledTimes(2);
     expect(canvas.adapter.add).toHaveBeenCalledTimes(2);
     expect(canvas.adapter.requestRenderAll).toHaveBeenCalledTimes(2);
@@ -310,6 +390,41 @@ describe("renderCardDocument", () => {
     }
   });
 
+  it("preserves the current canvas and disposes resources when fonts reject", async () => {
+    const canvas = createCanvas();
+    const firstAssets = createAssets();
+    const document = createCardDocument(currentCardTemplate);
+    await renderCardDocument(
+      canvas.adapter,
+      document,
+      currentCardTemplate,
+      createOptions(firstAssets),
+    );
+    const addCount = canvas.adapter.add.mock.calls.length;
+    const clearCount = canvas.adapter.clear.mock.calls.length;
+    const nextAssets = createAssets();
+    const failure = new Error("font failed");
+    nextAssets.waitForFonts = vi.fn(async () => {
+      throw failure;
+    });
+
+    await expect(
+      renderCardDocument(
+        canvas.adapter,
+        document,
+        currentCardTemplate,
+        createOptions(nextAssets),
+      ),
+    ).rejects.toBe(failure);
+
+    expect(canvas.adapter.add).toHaveBeenCalledTimes(addCount);
+    expect(canvas.adapter.clear).toHaveBeenCalledTimes(clearCount);
+    expect(nextAssets.loaded).toHaveLength(4);
+    for (const image of nextAssets.loaded) {
+      expect(image.dispose).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it("rejects missing optional assets without touching the previous scene", async () => {
     const canvas = createCanvas();
     const assets = createAssets();
@@ -325,6 +440,7 @@ describe("renderCardDocument", () => {
       assets: { ...currentCardTemplate.assets, avatarFrame: undefined },
     };
     const loadCalls = assets.loadImage.mock.calls.length;
+    const fontCalls = assets.waitForFonts.mock.calls.length;
     const clearCalls = canvas.adapter.clear.mock.calls.length;
 
     await expect(
@@ -337,6 +453,7 @@ describe("renderCardDocument", () => {
     ).rejects.toThrow(/avatar-frame.*avatarFrame/);
 
     expect(assets.loadImage).toHaveBeenCalledTimes(loadCalls);
+    expect(assets.waitForFonts).toHaveBeenCalledTimes(fontCalls);
     expect(canvas.adapter.clear).toHaveBeenCalledTimes(clearCalls);
     expect(canvas.adapter.add).toHaveBeenCalledTimes(1);
     expect(first.objects[0].data).toEqual({ role: "static", id: "card" });
@@ -354,6 +471,7 @@ describe("renderCardDocument", () => {
     );
     const clearCalls = canvas.adapter.clear.mock.calls.length;
     const nextAssets = createAssets();
+    const rectDisposeSpy = vi.spyOn(Rect.prototype, "dispose");
     const invalidTemplate: CardTemplateDefinition = {
       ...legacyCardTemplate,
       fields: {
@@ -363,7 +481,7 @@ describe("renderCardDocument", () => {
           maxWidth: 10,
         },
       },
-      staticObjects: [legacyCardTemplate.staticObjects[0]],
+      staticObjects: [legacyCardTemplate.staticObjects[1]],
     };
 
     await expect(
@@ -380,6 +498,13 @@ describe("renderCardDocument", () => {
     expect(first.objects[0].data).toEqual({ role: "static", id: "card" });
     for (const object of nextAssets.loaded) {
       expect(object.dispose).toHaveBeenCalledTimes(1);
+      if (object.clipPath) {
+        expect(
+          rectDisposeSpy.mock.instances.filter(
+            (instance) => instance === object.clipPath,
+          ),
+        ).toHaveLength(1);
+      }
     }
   });
 

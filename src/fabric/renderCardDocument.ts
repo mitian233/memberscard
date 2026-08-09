@@ -179,14 +179,15 @@ function createFieldObjects(
       }
     }
 
+    const factoryDefinition =
+      fontSize === definition.fontSize
+        ? definition
+        : { ...definition, fontSize };
     const fieldObject = createEditableFabricText(
-      definition,
+      factoryDefinition,
       value,
       options.mode,
     );
-    if (fontSize !== definition.fontSize) {
-      fieldObject.set("fontSize", fontSize);
-    }
 
     fields[definition.field] = fieldObject;
     objects.push(fieldObject);
