@@ -101,7 +101,7 @@ describe("CardToolbar", () => {
       /\.toolbar-controls\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap/,
     );
     expect(toolbarSource).toMatch(
-      /\.toolbar-control:focus-visible\s*\{[^}]*outline:\s*(?!none\b)[^;}]+/,
+      /\.toolbar-control:focus-visible\s*\{[^}]*outline:(?!\s*none\b)\s*[^;}]+/,
     );
   });
 });

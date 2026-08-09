@@ -167,7 +167,7 @@ describe("ExportActions", () => {
       /\.export-controls\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap/,
     );
     expect(exportSource).toMatch(
-      /\.export-action:focus-visible\s*\{[^}]*outline:\s*(?!none\b)[^;}]+/,
+      /\.export-action:focus-visible\s*\{[^}]*outline:(?!\s*none\b)\s*[^;}]+/,
     );
     const scopedStyle = exportSource.match(
       /<style\s+scoped>([\s\S]*?)<\/style>/i,
