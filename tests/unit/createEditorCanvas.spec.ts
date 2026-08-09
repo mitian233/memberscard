@@ -12,7 +12,7 @@ const makeRawCanvas = () => {
     add: vi.fn<Canvas["add"]>(() => 0),
     remove: vi.fn<Canvas["remove"]>(() => []),
     requestRenderAll: vi.fn<Canvas["requestRenderAll"]>(),
-    discardActiveObject: vi.fn<Canvas["discardActiveObject"]>(),
+    discardActiveObject: vi.fn<Canvas["discardActiveObject"]>(() => true),
     dispose: vi.fn<Canvas["dispose"]>(async () => true),
   };
 
