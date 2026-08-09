@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
+import { nextTick } from "vue";
 import CardInspector from "@/components/editor/CardInspector.vue";
 import { createCardDocument } from "@/editor/cardDocument";
 import { currentCardTemplate } from "@/templates/currentCardTemplate";
@@ -13,6 +16,11 @@ import type {
 } from "@/types/card";
 
 type InspectorGroup = "basic" | "avatar";
+
+const inspectorSource = readFileSync(
+  resolve(process.cwd(), "src/components/editor/CardInspector.vue"),
+  "utf8",
+);
 
 function makeProps(
   template: CardTemplateDefinition = currentCardTemplate,
@@ -253,9 +261,9 @@ describe("CardInspector", () => {
     ]);
   });
 
-  it("disables every control, retains a 44px control contract, and emits nothing when disabled", async () => {
+  it("disables every avatar control and suppresses edit, file, and reset emissions", async () => {
     const wrapper = mountInspector(currentCardTemplate, {
-      activeGroup: "basic",
+      activeGroup: "avatar",
       disabled: true,
     });
     const controls = wrapper.findAll("button, input");
@@ -267,11 +275,45 @@ describe("CardInspector", () => {
       controls.every((control) => control.classes("inspector-control")),
     ).toBe(true);
 
-    await wrapper.get('input[data-field="name"]').trigger("input");
-    await wrapper.get('button[data-reset-field="name"]').trigger("click");
-    await wrapper
-      .get('button[role="tab"]:not([aria-selected="true"])')
-      .trigger("click");
-    expect(wrapper.emitted()).toEqual({});
+    const left = wrapper.get('input[data-avatar-field="left"]');
+    left.element.value = "12";
+    left.element.dispatchEvent(new Event("input", { bubbles: true }));
+    const fileInput = wrapper.get('input[type="file"]');
+    const file = new File(["avatar"], "avatar.png", { type: "image/png" });
+    Object.defineProperty(fileInput.element, "files", {
+      configurable: true,
+      value: [file],
+    });
+    fileInput.element.dispatchEvent(new Event("change", { bubbles: true }));
+    wrapper
+      .get("button[data-reset-avatar]")
+      .element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await nextTick();
+
+    expect(wrapper.emitted("update-avatar")).toBeUndefined();
+    expect(wrapper.emitted("avatar-file")).toBeUndefined();
+    expect(wrapper.emitted("reset-avatar")).toBeUndefined();
+    expect(getComputedStyle(left.element).minHeight).toBe("");
+    expect(inspectorSource).toMatch(
+      /\.inspector-control\s*\{[\s\S]*?min-height:\s*44px/,
+    );
+  });
+
+  it("keeps disabled tabs inert for keyboard selection and focus", async () => {
+    const wrapper = mountInspector(currentCardTemplate, {
+      activeGroup: "basic",
+      disabled: true,
+    });
+    const basicTab = tab(wrapper, "基本信息");
+    const panel = wrapper.get('[role="tabpanel"]');
+    await panel.element.focus();
+    expect(document.activeElement).toBe(panel.element);
+
+    basicTab.element.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    );
+    await nextTick();
+    expect(document.activeElement).toBe(panel.element);
+    expect(wrapper.emitted("update:activeGroup")).toBeUndefined();
   });
 });
