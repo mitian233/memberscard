@@ -62,6 +62,7 @@ export function downloadCardPng(
   const resolvedEnvironment = environment ?? createDefaultEnvironment();
   let objectUrl: string | undefined;
   let anchor: HTMLAnchorElement | undefined;
+  let appendAttempted = false;
   let workFailed = false;
   let workError: unknown;
   let cleanupFailed = false;
@@ -74,13 +75,14 @@ export function downloadCardPng(
     anchor.download = trimmedFilename;
     anchor.hidden = true;
     anchor.setAttribute("aria-hidden", "true");
+    appendAttempted = true;
     resolvedEnvironment.appendAnchor(anchor);
     anchor.click();
   } catch (error) {
     workFailed = true;
     workError = error;
   } finally {
-    if (anchor !== undefined) {
+    if (appendAttempted && anchor !== undefined) {
       try {
         resolvedEnvironment.removeAnchor(anchor);
       } catch (error) {

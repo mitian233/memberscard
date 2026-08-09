@@ -87,15 +87,14 @@ describe("download card PNG", () => {
     const order: string[] = [];
     const { anchor, methods: anchorMethods, attributes } = createAnchor();
     const environment = createEnvironment(anchor, order);
+    const blob = createBlob("image/png");
     anchorMethods.click.mockImplementation(() => {
       order.push("click");
     });
 
-    downloadCardPng(createBlob("image/png"), "  member.PNG  ", environment);
+    downloadCardPng(blob, "  member.PNG  ", environment);
 
-    expect(environment.methods.createObjectUrl).toHaveBeenCalledWith(
-      expect.any(Blob),
-    );
+    expect(environment.methods.createObjectUrl).toHaveBeenCalledWith(blob);
     expect(environment.methods.createObjectUrl).toHaveBeenCalledTimes(1);
     expect(environment.methods.createAnchor).toHaveBeenCalledTimes(1);
     expect(anchor.href).toBe("blob:test-url");
@@ -199,39 +198,46 @@ describe("download card PNG", () => {
       "document",
     );
     const urlDescriptor = Object.getOwnPropertyDescriptor(globalThis, "URL");
-    let documentReads = 0;
-    let urlReads = 0;
+    let moduleDocumentReads = 0;
+    let moduleUrlReads = 0;
+    const originalDocument = globalThis.document;
     const originalUrl = globalThis.URL;
-    const throwingUrl = new Proxy(originalUrl, {
-      get(target, property, receiver) {
-        if (property === "createObjectURL" || property === "revokeObjectURL") {
-          urlReads += 1;
-          throw new Error("URL method accessed before download");
-        }
-        return Reflect.get(target, property, receiver);
-      },
-    });
+    const isDownloadModuleRead = (stack: string): boolean =>
+      /[\\/]src[\\/]editor[\\/]download(?:\.ts|\.js)(?:[?:]|$)/.test(
+        stack.replaceAll("\\", "/"),
+      );
     Object.defineProperty(globalThis, "document", {
       configurable: true,
       get() {
-        documentReads += 1;
-        throw new Error("document accessed during import");
+        const stack = new Error().stack ?? "";
+        if (isDownloadModuleRead(stack)) {
+          moduleDocumentReads += 1;
+          throw new Error("document accessed by download module");
+        }
+        return originalDocument;
       },
     });
     Object.defineProperty(globalThis, "URL", {
       configurable: true,
-      value: throwingUrl,
+      get() {
+        const stack = new Error().stack ?? "";
+        if (isDownloadModuleRead(stack)) {
+          moduleUrlReads += 1;
+          throw new Error("URL accessed by download module");
+        }
+        return originalUrl;
+      },
     });
 
     try {
       const imported = await import("@/editor/download");
-      expect(documentReads).toBe(0);
-      expect(urlReads).toBe(0);
+      expect(moduleDocumentReads).toBe(0);
+      expect(moduleUrlReads).toBe(0);
       expect(() =>
         imported.downloadCardPng(createBlob("image/png"), "card.png"),
       ).toThrow("图片下载失败，请重试。");
-      expect(urlReads).toBe(1);
-      expect(documentReads).toBe(0);
+      expect(moduleUrlReads).toBe(1);
+      expect(moduleDocumentReads).toBe(0);
     } finally {
       if (documentDescriptor === undefined) {
         Reflect.deleteProperty(globalThis, "document");
@@ -267,6 +273,8 @@ describe("download card PNG", () => {
     downloadCardPng(blob, "card.png", environment);
 
     expect(environment.createObjectUrl).toHaveBeenCalledTimes(2);
+    expect(environment.createObjectUrl).toHaveBeenNthCalledWith(1, blob);
+    expect(environment.createObjectUrl).toHaveBeenNthCalledWith(2, blob);
     expect(environment.createAnchor).toHaveBeenCalledTimes(2);
     expect(environment.appendAnchor).toHaveBeenNthCalledWith(1, first.anchor);
     expect(environment.appendAnchor).toHaveBeenNthCalledWith(2, second.anchor);
@@ -321,7 +329,7 @@ describe("download card PNG", () => {
         downloadCardPng(createBlob("image/png"), "card.png", setupEnvironment),
       setupError,
     );
-    expect(setupEnvironment.methods.removeAnchor).toHaveBeenCalledTimes(1);
+    expect(setupEnvironment.methods.removeAnchor).not.toHaveBeenCalled();
     expect(setupEnvironment.methods.revokeObjectUrl).toHaveBeenCalledTimes(1);
 
     const appendError = new Error("append details");
@@ -393,5 +401,24 @@ describe("download card PNG", () => {
     );
     expect(cleanupEnvironment.methods.removeAnchor).toHaveBeenCalledTimes(1);
     expect(cleanupEnvironment.methods.revokeObjectUrl).toHaveBeenCalledTimes(1);
+
+    const revokeOnlyError = new Error("revoke-only details");
+    const revokeOnlyEnvironment = createEnvironment();
+    revokeOnlyEnvironment.methods.revokeObjectUrl.mockImplementation(() => {
+      throw revokeOnlyError;
+    });
+    expectDownloadError(
+      () =>
+        downloadCardPng(
+          createBlob("image/png"),
+          "card.png",
+          revokeOnlyEnvironment,
+        ),
+      revokeOnlyError,
+    );
+    expect(revokeOnlyEnvironment.methods.removeAnchor).toHaveBeenCalledTimes(1);
+    expect(revokeOnlyEnvironment.methods.revokeObjectUrl).toHaveBeenCalledTimes(
+      1,
+    );
   });
 });
