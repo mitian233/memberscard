@@ -491,12 +491,17 @@ describe("card canvas session", () => {
     const nextDocument = documentFor(currentCardTemplate, {
       name: "reentrant",
     });
-    const recoveryScene = createSceneFake();
-    fixtures.render.mockResolvedValueOnce(recoveryScene);
+    const thirdDocument = documentFor(currentCardTemplate, {
+      name: "reentrant-next",
+    });
     let nextSubmit: Promise<void> | undefined;
     vi.mocked(callbacks.onFieldValidation).mockImplementationOnce(() => {
       nextSubmit = session.submit(
-        replaceRequest(3, currentCardTemplate, nextDocument),
+        patchRequest(
+          3,
+          { type: "field", field: "name", value: "reentrant-next" },
+          thirdDocument,
+        ),
       );
     });
     fixtures.applyPatch.mockReturnValueOnce({
@@ -514,7 +519,12 @@ describe("card canvas session", () => {
     );
     expect(nextSubmit).toBeDefined();
     expect(callbacks.onSettled).toHaveBeenCalledTimes(1);
+    expect(fixtures.render).toHaveBeenCalledTimes(1);
     await nextSubmit;
+    expect(fixtures.render).toHaveBeenCalledTimes(1);
+    expect(fixtures.applyPatch).toHaveBeenCalledTimes(2);
+    const secondApplyOptions = fixtures.applyPatch.mock.calls[1]?.[3];
+    expect(secondApplyOptions?.currentDocument).toBe(nextDocument);
     expect(callbacks.onSettled).toHaveBeenLastCalledWith(
       expect.objectContaining({ revision: 3 }),
     );
@@ -549,6 +559,56 @@ describe("card canvas session", () => {
     expect(disposal).toBeDefined();
     expect(callbacks.onSettled).toHaveBeenCalledTimes(1);
     await disposal;
+  });
+
+  it("swallows a fast field notification error while settling the patch and later contiguous patch", async () => {
+    const imported = await getSessionModule();
+    const fixtures = createControllerFixtures();
+    const callbacks = createCallbacks();
+    const session = imported.createCardCanvasSession(
+      createSessionOptions(fixtures.controller, callbacks, fixtures.canvas),
+    );
+    await session.submit(replaceRequest(1));
+    const secondDocument = documentFor(currentCardTemplate, {
+      name: "throwing",
+    });
+    vi.mocked(callbacks.onFieldValidation).mockImplementationOnce(() => {
+      throw new Error("field callback");
+    });
+    fixtures.applyPatch.mockReturnValueOnce({
+      kind: "applied",
+      field: "name",
+      error: fieldError("name"),
+    });
+
+    await expect(
+      session.submit(
+        patchRequest(
+          2,
+          { type: "field", field: "name", value: "throwing" },
+          secondDocument,
+        ),
+      ),
+    ).resolves.toBeUndefined();
+    expect(callbacks.onSettled).toHaveBeenLastCalledWith(
+      expect.objectContaining({ revision: 2 }),
+    );
+
+    const thirdDocument = documentFor(currentCardTemplate, {
+      name: "healthy",
+    });
+    await session.submit(
+      patchRequest(
+        3,
+        { type: "field", field: "name", value: "healthy" },
+        thirdDocument,
+      ),
+    );
+    expect(fixtures.render).toHaveBeenCalledTimes(1);
+    expect(fixtures.applyPatch).toHaveBeenCalledTimes(2);
+    expect(callbacks.onSettled).toHaveBeenLastCalledWith(
+      expect.objectContaining({ revision: 3 }),
+    );
   });
 
   it("falls back to full render when avatar source changes", async () => {
