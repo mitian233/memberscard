@@ -107,6 +107,101 @@ describe("clipboard", () => {
     expect(write).not.toHaveBeenCalled();
   });
 
+  it("contains an independently throwing item factory getter", () => {
+    const write = vi.fn(async () => undefined);
+    let itemReads = 0;
+    const environment = Object.defineProperties(
+      {},
+      {
+        clipboard: {
+          configurable: true,
+          value: { write },
+        },
+        createClipboardItem: {
+          configurable: true,
+          get() {
+            itemReads += 1;
+            throw new Error("item factory getter");
+          },
+        },
+      },
+    ) as ClipboardEnvironment;
+
+    let available = true;
+    expect(() => {
+      available = isPngClipboardAvailable(environment);
+    }).not.toThrow();
+    expect(available).toBe(false);
+    expect(itemReads).toBe(1);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("resolves unsupported for every unavailable capability", async () => {
+    const missingClipboardWrite = vi.fn(async () => undefined);
+    const missingClipboardItem = vi.fn(() => ({}) as ClipboardItem);
+    const missingFactoryWrite = vi.fn(async () => undefined);
+    const missingFactoryItem = vi.fn(() => ({}) as ClipboardItem);
+    const nonCallableWrite = vi.fn(async () => undefined);
+    const nonCallableItem = vi.fn(() => ({}) as ClipboardItem);
+    const throwingWrite = vi.fn(async () => undefined);
+    const throwingItem = vi.fn(() => ({}) as ClipboardItem);
+    let throwingItemReads = 0;
+    const throwingEnvironment = Object.defineProperties(
+      {},
+      {
+        clipboard: {
+          configurable: true,
+          value: { write: throwingWrite },
+        },
+        createClipboardItem: {
+          configurable: true,
+          get() {
+            throwingItemReads += 1;
+            throw new Error("item factory getter");
+          },
+        },
+      },
+    ) as ClipboardEnvironment;
+
+    const cases = [
+      {
+        environment: {
+          createClipboardItem: missingClipboardItem,
+        } as ClipboardEnvironment,
+        write: missingClipboardWrite,
+        item: missingClipboardItem,
+      },
+      {
+        environment: { clipboard: { write: missingFactoryWrite } },
+        write: missingFactoryWrite,
+        item: missingFactoryItem,
+      },
+      {
+        environment: {
+          clipboard: { write: nonCallableWrite },
+          createClipboardItem:
+            42 as unknown as ClipboardEnvironment["createClipboardItem"],
+        },
+        write: nonCallableWrite,
+        item: nonCallableItem,
+      },
+      {
+        environment: throwingEnvironment,
+        write: throwingWrite,
+        item: throwingItem,
+      },
+    ];
+
+    for (const testCase of cases) {
+      await expect(
+        copyCardPng(createPngBlob(), testCase.environment),
+      ).resolves.toBe("unsupported");
+      expect(testCase.write).not.toHaveBeenCalled();
+      expect(testCase.item).not.toHaveBeenCalled();
+    }
+    expect(throwingItemReads).toBe(1);
+  });
+
   it("returns unsupported for non-function and throwing capability properties", () => {
     const write = vi.fn(async () => undefined);
     const createClipboardItem = vi.fn(() => ({}) as ClipboardItem);
