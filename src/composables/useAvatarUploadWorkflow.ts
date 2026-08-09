@@ -36,10 +36,11 @@ const SUCCESS_MESSAGE = "头像已更新。";
 const UNKNOWN_ERROR_MESSAGE = "图片加载失败，请重新选择。";
 
 function hasSameTemplate(
-  first: CardTemplateDefinition,
-  second: CardTemplateDefinition,
+  current: CardTemplateDefinition,
+  snapshot: CardTemplateDefinition,
+  snapshotId: CardTemplateDefinition["id"],
 ): boolean {
-  return first === second && first.id === second.id;
+  return current === snapshot && current.id === snapshotId;
 }
 
 export function useAvatarUploadWorkflow(
@@ -65,6 +66,7 @@ export function useAvatarUploadWorkflow(
     const token = latestToken.value + 1;
     latestToken.value = token;
     const template = editor.template.value;
+    const templateId = template.id;
     status.value = { state: "working" };
 
     let result: AvatarTransform;
@@ -74,7 +76,7 @@ export function useAvatarUploadWorkflow(
       if (token !== latestToken.value) {
         return false;
       }
-      if (!hasSameTemplate(editor.template.value, template)) {
+      if (!hasSameTemplate(editor.template.value, template, templateId)) {
         status.value = { state: "idle" };
         return false;
       }
@@ -98,7 +100,7 @@ export function useAvatarUploadWorkflow(
     if (token !== latestToken.value) {
       return false;
     }
-    if (!hasSameTemplate(editor.template.value, template)) {
+    if (!hasSameTemplate(editor.template.value, template, templateId)) {
       status.value = { state: "idle" };
       return false;
     }

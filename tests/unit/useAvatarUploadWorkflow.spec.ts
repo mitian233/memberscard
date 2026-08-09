@@ -202,6 +202,97 @@ describe("useAvatarUploadWorkflow", () => {
     expect(workflow.status.value).toEqual({ state: "idle" });
   });
 
+  it("restores idle when the snapshotted template id mutates in place", async () => {
+    const template = createTemplate("current");
+    const { editor, templateRef, updates } = createEditor(template);
+    const successPending = deferred<AvatarTransform>();
+    const successWorkflow = useAvatarUploadWorkflow(
+      editor,
+      vi.fn(() => successPending.promise),
+    );
+    const successOperation = successWorkflow.upload(createFile());
+    templateRef.value.id = "legacy";
+    successPending.resolve(transform);
+    await expect(successOperation).resolves.toBe(false);
+    expect(successWorkflow.status.value).toEqual({ state: "idle" });
+    expect(updates).toHaveLength(0);
+
+    templateRef.value.id = "current";
+    const failurePending = deferred<AvatarTransform>();
+    const failureWorkflow = useAvatarUploadWorkflow(
+      editor,
+      vi.fn(() => failurePending.promise),
+    );
+    const failureOperation = failureWorkflow.upload(createFile("failure.png"));
+    templateRef.value.id = "legacy";
+    failurePending.reject(new Error("late failure"));
+    await expect(failureOperation).resolves.toBe(false);
+    expect(failureWorkflow.status.value).toEqual({ state: "idle" });
+    expect(updates).toHaveLength(0);
+  });
+
+  it("uses the default loader lazily with exact file/frame and no import-time browser reads", async () => {
+    vi.resetModules();
+    const actual = await vi.importActual<
+      typeof import("@/editor/avatarUpload")
+    >("@/editor/avatarUpload");
+    const result = { ...transform };
+    const defaultLoader = vi.fn(async () => result);
+    vi.doMock("@/editor/avatarUpload", () => ({
+      ...actual,
+      loadAvatarFile: defaultLoader,
+    }));
+    const fileReaderDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "FileReader",
+    );
+    const imageDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "Image",
+    );
+    let browserReads = 0;
+    Object.defineProperty(globalThis, "FileReader", {
+      configurable: true,
+      get() {
+        browserReads += 1;
+        throw new Error("FileReader accessed during import");
+      },
+    });
+    Object.defineProperty(globalThis, "Image", {
+      configurable: true,
+      get() {
+        browserReads += 1;
+        throw new Error("Image accessed during import");
+      },
+    });
+
+    try {
+      const freshModule = await import("@/composables/useAvatarUploadWorkflow");
+      const template = createTemplate();
+      const { editor, updates } = createEditor(template);
+      const workflow = freshModule.useAvatarUploadWorkflow(editor);
+      expect(defaultLoader).not.toHaveBeenCalled();
+      const file = createFile("default.png");
+      await expect(workflow.upload(file)).resolves.toBe(true);
+      expect(defaultLoader).toHaveBeenCalledWith(file, template.avatarFrame);
+      expect(updates).toEqual([{ ...result }]);
+      expect(browserReads).toBe(0);
+    } finally {
+      if (fileReaderDescriptor === undefined) {
+        Reflect.deleteProperty(globalThis, "FileReader");
+      } else {
+        Object.defineProperty(globalThis, "FileReader", fileReaderDescriptor);
+      }
+      if (imageDescriptor === undefined) {
+        Reflect.deleteProperty(globalThis, "Image");
+      } else {
+        Object.defineProperty(globalThis, "Image", imageDescriptor);
+      }
+      vi.doUnmock("@/editor/avatarUpload");
+      vi.resetModules();
+    }
+  });
+
   it("does not mutate frozen inputs/results and exposes readonly status", async () => {
     const template = createTemplate();
     Object.freeze(template.avatarFrame);
@@ -217,14 +308,20 @@ describe("useAvatarUploadWorkflow", () => {
         return result;
       },
     );
+    Object.freeze(editor);
+    Object.freeze(loader);
     const workflow = useAvatarUploadWorkflow(editor, loader);
 
     await expect(workflow.upload(file)).resolves.toBe(true);
     expect(updates[0]).toEqual(result);
     Reflect.set(workflow.status, "value", { state: "idle" });
+    Reflect.set(workflow.message, "value", "mutated");
+    Reflect.set(workflow.working, "value", true);
     expect(workflow.status.value).toEqual({
       state: "success",
       message: "头像已更新。",
     });
+    expect(workflow.message.value).toBe("头像已更新。");
+    expect(workflow.working.value).toBe(false);
   });
 });
