@@ -90,6 +90,63 @@ describe("ExportActions", () => {
     expect(wrapper.emitted("export")).toEqual([[]]);
   });
 
+  it("omits copy recovery help and description when the reason is explicitly empty", () => {
+    const wrapper = mountExport({ copyUnavailableReason: "" });
+
+    expect(wrapper.find("[data-copy-help]").exists()).toBe(false);
+    expect(
+      actionButtons(wrapper)[0].attributes("aria-describedby"),
+    ).toBeUndefined();
+  });
+
+  it("keeps both actions disabled and inert during copy and export work even when allowed", () => {
+    const copyWrapper = mountExport({
+      busy: true,
+      isExporting: false,
+      canCopy: true,
+      canExport: true,
+    });
+    const copyButtons = actionButtons(copyWrapper);
+    expect(copyButtons.map((button) => button.text())).toEqual([
+      "正在复制…",
+      "保存 PNG",
+    ]);
+    expect(
+      copyButtons.every(
+        (button) => button.attributes("disabled") !== undefined,
+      ),
+    ).toBe(true);
+    for (const button of copyButtons) {
+      button.element.removeAttribute("disabled");
+      button.element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    expect(copyWrapper.emitted("copy")).toBeUndefined();
+    expect(copyWrapper.emitted("export")).toBeUndefined();
+
+    const exportWrapper = mountExport({
+      busy: true,
+      isExporting: true,
+      canCopy: true,
+      canExport: true,
+    });
+    const exportButtons = actionButtons(exportWrapper);
+    expect(exportButtons.map((button) => button.text())).toEqual([
+      "复制图片",
+      "正在导出…",
+    ]);
+    expect(
+      exportButtons.every(
+        (button) => button.attributes("disabled") !== undefined,
+      ),
+    ).toBe(true);
+    for (const button of exportButtons) {
+      button.element.removeAttribute("disabled");
+      button.element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+    expect(exportWrapper.emitted("copy")).toBeUndefined();
+    expect(exportWrapper.emitted("export")).toBeUndefined();
+  });
+
   it("disables unavailable actions and suppresses direct DOM events without inferring a help message", async () => {
     const wrapper = mountExport({ canCopy: false, canExport: false });
     const buttons = actionButtons(wrapper);
@@ -99,6 +156,7 @@ describe("ExportActions", () => {
     expect(wrapper.find("[data-copy-help]").exists()).toBe(false);
 
     for (const button of buttons) {
+      button.element.removeAttribute("disabled");
       button.element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     }
     expect(wrapper.emitted("copy")).toBeUndefined();
@@ -108,8 +166,13 @@ describe("ExportActions", () => {
     expect(exportSource).toMatch(
       /\.export-controls\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap/,
     );
-    expect(exportSource).not.toMatch(
-      /\.export-actions\s*\{[^}]*position:\s*(?:fixed|sticky)/,
+    expect(exportSource).toMatch(
+      /\.export-action:focus-visible\s*\{[^}]*outline:\s*(?!none\b)[^;}]+/,
     );
+    const scopedStyle = exportSource.match(
+      /<style\s+scoped>([\s\S]*?)<\/style>/i,
+    )?.[1];
+    expect(scopedStyle).toBeTruthy();
+    expect(scopedStyle).not.toMatch(/position\s*:\s*(?:fixed|sticky)/i);
   });
 });

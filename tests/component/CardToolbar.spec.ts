@@ -59,6 +59,12 @@ describe("CardToolbar", () => {
     expect(wrapper.get("button[data-reset-all]").text()).toBe("全部重置");
   });
 
+  it("shows the explicit default status when the document is clean", () => {
+    const wrapper = mountToolbar({ dirty: false });
+
+    expect(wrapper.get('[role="status"]').text()).toBe("默认状态");
+  });
+
   it("emits one template-change for a new template, ignores the active template, and emits reset", async () => {
     const wrapper = mountToolbar({ templateId: "current" });
     const buttons = templateButtons(wrapper);
@@ -82,6 +88,7 @@ describe("CardToolbar", () => {
     ).toBe(true);
 
     for (const button of controls) {
+      button.element.removeAttribute("disabled");
       button.element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     }
     expect(wrapper.emitted("template-change")).toBeUndefined();
@@ -92,6 +99,9 @@ describe("CardToolbar", () => {
     );
     expect(toolbarSource).toMatch(
       /\.toolbar-controls\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap/,
+    );
+    expect(toolbarSource).toMatch(
+      /\.toolbar-control:focus-visible\s*\{[^}]*outline:\s*(?!none\b)[^;}]+/,
     );
   });
 });
