@@ -21,6 +21,19 @@ const template: CardTemplateDefinition = {
   staticObjects: []
 }
 
+const legacyTemplate = {
+  id: 'legacy',
+  canvas: { width: 960, height: 640, radius: 40 },
+  assets: { background: '/old-background.svg', logo: '/logo.svg' },
+  defaults: {
+    name: '二葉 つくし', nameEn: 'Tsukushi Futaba', bandName: 'Morfonica',
+    avatar: { src: '/demo.png', left: -76.56, top: 221, scale: 0.58 }
+  },
+  avatarFrame: { left: 87, top: 221, width: 305, height: 368, radius: 0 },
+  fields: {},
+  staticObjects: []
+} satisfies CardTemplateDefinition
+
 describe('CardDocument', () => {
   it('creates an independent document from template defaults', () => {
     const first = createCardDocument(template)
@@ -42,5 +55,12 @@ describe('CardDocument', () => {
     edited.avatar.left = 2
     expect(resetAvatar(edited, template).bandName).toBe('Other')
     expect(resetCardDocument(template)).toEqual(createCardDocument(template))
+  })
+
+  it('creates legacy documents without a birthday or avatar frame asset', () => {
+    const document = createCardDocument(legacyTemplate)
+    expect(document.templateId).toBe('legacy')
+    expect(document).not.toHaveProperty('birthday')
+    expect(document.avatar.left).toBe(-76.56)
   })
 })

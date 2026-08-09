@@ -35,7 +35,7 @@ export interface CardCanvasDefinition {
 export interface CardAssetsDefinition {
   background: string;
   logo: string;
-  avatarFrame: string;
+  avatarFrame?: string;
 }
 
 export interface AvatarFrameDefinition {
