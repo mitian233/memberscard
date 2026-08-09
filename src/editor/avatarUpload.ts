@@ -107,8 +107,8 @@ function loadImageSizeWithImage(source: string): Promise<{
     image.onload = () => {
       resolve({ width: image.naturalWidth, height: image.naturalHeight });
     };
-    image.onerror = () => {
-      reject(new Error("Image failed to load"));
+    image.onerror = (event) => {
+      reject(event);
     };
 
     try {

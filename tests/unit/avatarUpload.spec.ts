@@ -93,6 +93,21 @@ describe("avatarUpload", () => {
       code: "file-too-large",
       message: "图片不能超过 10 MB。",
     });
+
+    const first = validateAvatarFile(createFile("image/png"));
+    const second = validateAvatarFile(createFile("image/png"));
+    expect(first).toEqual({ valid: true });
+    expect(first).not.toBe(second);
+  });
+
+  it("rejects image/jpg, image/gif, and empty MIME values", () => {
+    for (const type of ["image/jpg", "image/gif", ""]) {
+      expect(validateAvatarFile(createFile(type))).toEqual({
+        valid: false,
+        code: "unsupported-type",
+        message: "请选择 JPG、PNG 或 WebP 图片。",
+      });
+    }
   });
 
   it("checks MIME before size and returns fresh validation results", () => {
@@ -118,6 +133,19 @@ describe("avatarUpload", () => {
     );
     expect(environment.readDataUrl).not.toHaveBeenCalled();
     expect(environment.loadImageSize).not.toHaveBeenCalled();
+
+    const oversizeEnvironment = createEnvironment({ width: 200, height: 100 });
+    await expectUploadError(
+      loadAvatarFile(
+        createFile("image/png", MAX_AVATAR_BYTES + 1),
+        currentCardTemplate.avatarFrame,
+        oversizeEnvironment,
+      ),
+      "file-too-large",
+      "图片不能超过 10 MB。",
+    );
+    expect(oversizeEnvironment.readDataUrl).not.toHaveBeenCalled();
+    expect(oversizeEnvironment.loadImageSize).not.toHaveBeenCalled();
   });
 
   it("wraps injected read failures and rejects empty data URLs with safe errors", async () => {
@@ -254,8 +282,69 @@ describe("avatarUpload", () => {
     expect(clampAvatarTransform(candidate, imageSize, frame)).toEqual(result);
   });
 
+  it("uses an injected frozen image-size object without copying or mutating it", async () => {
+    const imageSize = Object.freeze({ width: 320, height: 180 });
+    const environment = {
+      readDataUrl: vi.fn(async () => "data:image/png;base64,frozen"),
+      loadImageSize: vi.fn(async () => imageSize),
+    };
+    const before = JSON.stringify(imageSize);
+    await loadAvatarFile(
+      createFile("image/png"),
+      currentCardTemplate.avatarFrame,
+      environment,
+    );
+    expect(environment.loadImageSize).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(imageSize)).toBe(before);
+  });
+
+  it("passes the centered candidate, exact image size, and frame to the clamp helper", async () => {
+    vi.resetModules();
+    const actual = await vi.importActual<
+      typeof import("@/editor/avatarGeometry")
+    >("@/editor/avatarGeometry");
+    const clampSpy = vi.fn(actual.clampAvatarTransform);
+    vi.doMock("@/editor/avatarGeometry", () => ({
+      ...actual,
+      clampAvatarTransform: clampSpy,
+    }));
+
+    try {
+      const freshModule = await import("@/editor/avatarUpload");
+      const frame = currentCardTemplate.avatarFrame;
+      const imageSize = { width: 320, height: 180 };
+      const dataUrl = "data:image/png;base64,spy";
+      const environment = {
+        readDataUrl: vi.fn(async () => dataUrl),
+        loadImageSize: vi.fn(async () => imageSize),
+      };
+      await freshModule.loadAvatarFile(
+        createFile("image/png"),
+        frame,
+        environment,
+      );
+      const scale = actual.getCoverScale(imageSize, frame);
+      expect(clampSpy).toHaveBeenCalledTimes(1);
+      expect(clampSpy).toHaveBeenCalledWith(
+        {
+          src: dataUrl,
+          left: frame.left + (frame.width - imageSize.width * scale) / 2,
+          top: frame.top + (frame.height - imageSize.height * scale) / 2,
+          scale,
+        },
+        imageSize,
+        frame,
+      );
+    } finally {
+      vi.doUnmock("@/editor/avatarGeometry");
+      vi.resetModules();
+    }
+  });
+
   it("keeps default FileReader and Image operations lazy and ordered", async () => {
     const events: string[] = [];
+    let readerHandlersInstalled = false;
+    let imageHandlersInstalled = false;
     let readerConstructed = 0;
     let imageConstructed = 0;
     class StubFileReader {
@@ -268,6 +357,7 @@ describe("avatarUpload", () => {
       }
 
       readAsDataURL(): void {
+        readerHandlersInstalled = this.onload !== null && this.onerror !== null;
         events.push("reader:start");
         this.result = "data:image/png;base64,default";
         queueMicrotask(() => {
@@ -287,6 +377,7 @@ describe("avatarUpload", () => {
       }
 
       set src(_value: string) {
+        imageHandlersInstalled = this.onload !== null && this.onerror !== null;
         events.push("image:src");
         queueMicrotask(() => {
           events.push("image:load");
@@ -306,12 +397,73 @@ describe("avatarUpload", () => {
     expect(result.src).toBe("data:image/png;base64,default");
     expect(readerConstructed).toBe(1);
     expect(imageConstructed).toBe(1);
+    expect(readerHandlersInstalled).toBe(true);
+    expect(imageHandlersInstalled).toBe(true);
     expect(events).toEqual([
       "reader:start",
       "reader:load",
       "image:src",
       "image:load",
     ]);
+  });
+
+  it("preserves the exact default FileReader error as a safe decode cause", async () => {
+    const readerError = { type: "error", source: "reader" };
+    let handlersInstalled = false;
+    class ErrorFileReader {
+      result: unknown = null;
+      error = readerError;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      readAsDataURL(): void {
+        handlersInstalled = this.onload !== null && this.onerror !== null;
+        queueMicrotask(() => this.onerror?.());
+      }
+    }
+    vi.stubGlobal("FileReader", ErrorFileReader);
+
+    await expectUploadError(
+      loadAvatarFile(createFile("image/png"), currentCardTemplate.avatarFrame),
+      "decode-failed",
+      "无法读取图片，请重新选择。",
+      readerError,
+    );
+    expect(handlersInstalled).toBe(true);
+  });
+
+  it("preserves the exact default Image error as a safe load cause", async () => {
+    const imageError = new Event("error");
+    let handlersInstalled = false;
+    class ReadyFileReader {
+      result: unknown = "data:image/png;base64,default";
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      readAsDataURL(): void {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    class ErrorImage {
+      naturalWidth = 0;
+      naturalHeight = 0;
+      onload: (() => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+
+      set src(_value: string) {
+        handlersInstalled = this.onload !== null && this.onerror !== null;
+        queueMicrotask(() => this.onerror?.(imageError));
+      }
+    }
+    vi.stubGlobal("FileReader", ReadyFileReader);
+    vi.stubGlobal("Image", ErrorImage);
+    await expectUploadError(
+      loadAvatarFile(createFile("image/png"), currentCardTemplate.avatarFrame),
+      "load-failed",
+      "图片加载失败，请重新选择。",
+      imageError,
+    );
+    expect(handlersInstalled).toBe(true);
   });
 
   it("does not touch FileReader or Image while importing and validating", async () => {
