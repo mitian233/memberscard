@@ -295,8 +295,35 @@ describe("CardInspector", () => {
     expect(wrapper.emitted("reset-avatar")).toBeUndefined();
     expect(getComputedStyle(left.element).minHeight).toBe("");
     expect(inspectorSource).toMatch(
-      /\.inspector-control\s*\{[\s\S]*?min-height:\s*44px/,
+      /\.inspector-control\s*\{[^}]*min-height:\s*44px/,
     );
+  });
+
+  it("disables every basic control and suppresses field, reset, and tab emissions", async () => {
+    const wrapper = mountInspector(currentCardTemplate, {
+      activeGroup: "basic",
+      disabled: true,
+    });
+    const controls = wrapper.findAll("button, input");
+    expect(controls.length).toBeGreaterThan(0);
+    expect(
+      controls.every((control) => control.attributes("disabled") !== undefined),
+    ).toBe(true);
+
+    const nameInput = wrapper.get('input[data-field="name"]');
+    nameInput.element.value = "blocked";
+    nameInput.element.dispatchEvent(new Event("input", { bubbles: true }));
+    wrapper
+      .get('button[data-reset-field="name"]')
+      .element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    wrapper
+      .get('button[role="tab"][aria-selected="false"]')
+      .element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await nextTick();
+
+    expect(wrapper.emitted("update-field")).toBeUndefined();
+    expect(wrapper.emitted("reset-field")).toBeUndefined();
+    expect(wrapper.emitted("update:activeGroup")).toBeUndefined();
   });
 
   it("keeps disabled tabs inert for keyboard selection and focus", async () => {
