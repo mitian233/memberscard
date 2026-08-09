@@ -19,6 +19,12 @@ import type {
   CardField,
   CardPatch,
   CardTemplateDefinition,
+  EditorAction,
+  EditorSelection,
+  EditorStatus,
+  ExportErrorCode,
+  FieldValidationError,
+  ResourceStatus,
   TemplateId,
 } from "@/types/card";
 
@@ -41,6 +47,13 @@ export type TemplateChangeResult =
 export interface UseCardEditorOptions {
   templates: CardTemplateRegistry;
   initialTemplateId: TemplateId;
+  clipboardAvailable?: boolean;
+}
+
+export interface CanvasSettledPayload {
+  revision: number;
+  resourceStatus: Extract<ResourceStatus, { state: "ready" | "degraded" }>;
+  fieldErrors: readonly FieldValidationError[];
 }
 
 export interface UseCardEditorReturn {
@@ -48,10 +61,41 @@ export interface UseCardEditorReturn {
   document: Readonly<ShallowRef<CardDocument>>;
   canvasSyncRequest: Readonly<ShallowRef<CanvasSyncRequest>>;
   pendingTemplateId: Readonly<Ref<TemplateId | null>>;
+  status: Readonly<Ref<EditorStatus>>;
+  resourceStatus: Readonly<Ref<ResourceStatus>>;
+  fieldErrors: Readonly<
+    Ref<Readonly<Partial<Record<CardField, FieldValidationError>>>>
+  >;
+  selection: Readonly<Ref<EditorSelection>>;
   isDirty: ComputedRef<boolean>;
+  isCanvasSynced: ComputedRef<boolean>;
+  isReady: ComputedRef<boolean>;
+  isBusy: ComputedRef<boolean>;
+  isExporting: ComputedRef<boolean>;
+  canExport: ComputedRef<boolean>;
+  canCopy: ComputedRef<boolean>;
+  statusMessage: ComputedRef<string>;
   updateField(field: CardField, value: string): void;
   updateAvatar(value: AvatarTransform): void;
   handleCanvasPatch(patch: CardPatch, source: "canvas"): void;
+  handleSelectionChange(selection: EditorSelection): void;
+  handleFieldValidation(
+    field: CardField,
+    error: FieldValidationError | null,
+  ): void;
+  handleCanvasSettled(payload: CanvasSettledPayload): boolean;
+  handleCanvasFailure(
+    revision: number,
+    status: Extract<ResourceStatus, { state: "error" }>,
+  ): boolean;
+  beginAction(action: EditorAction): boolean;
+  finishAction(action: EditorAction, message: string): boolean;
+  failAction(
+    action: EditorAction,
+    code: ExportErrorCode,
+    message: string,
+  ): boolean;
+  setClipboardAvailable(available: boolean): void;
   resetField(field: CardField): void;
   resetAvatar(): void;
   resetAll(): void;
@@ -77,6 +121,33 @@ function clonePatch(patch: CardPatch): CardPatch {
   }
 
   return { ...patch };
+}
+
+function cloneSelection(selection: EditorSelection): EditorSelection {
+  if (selection.type === "field") {
+    return { type: "field", field: selection.field };
+  }
+
+  return { type: selection.type };
+}
+
+function cloneFieldValidationError(
+  error: FieldValidationError,
+): FieldValidationError {
+  return { ...error };
+}
+
+function cloneResourceStatus(status: ResourceStatus): ResourceStatus {
+  switch (status.state) {
+    case "loading":
+      return { state: "loading" };
+    case "ready":
+      return { state: "ready" };
+    case "degraded":
+      return { ...status };
+    case "error":
+      return { ...status };
+  }
 }
 
 function avatarsEqual(
@@ -119,6 +190,16 @@ export function useCardEditor(
     template: activeTemplate.value,
   });
   const pendingTemplate = shallowRef<TemplateId | null>(null);
+  const editorStatus = shallowRef<EditorStatus>({ state: "idle" });
+  const currentResourceStatus = shallowRef<ResourceStatus>({
+    state: "loading",
+  });
+  const currentFieldErrors = shallowRef<
+    Readonly<Partial<Record<CardField, FieldValidationError>>>
+  >({});
+  const currentSelection = shallowRef<EditorSelection>({ type: "none" });
+  const settledRevision = shallowRef(0);
+  const clipboardAvailable = shallowRef(options.clipboardAvailable ?? false);
 
   const assertActiveField = (field: CardField): void => {
     if (activeTemplate.value.fields[field] === undefined) {
@@ -134,6 +215,22 @@ export function useCardEditor(
     return template;
   };
 
+  const clearCompletedStatus = (): void => {
+    if (
+      editorStatus.value.state === "success" ||
+      editorStatus.value.state === "error"
+    ) {
+      editorStatus.value = { state: "idle" };
+    }
+  };
+
+  const resetSystemState = (): void => {
+    editorStatus.value = { state: "idle" };
+    currentResourceStatus.value = { state: "loading" };
+    currentFieldErrors.value = {};
+    currentSelection.value = { type: "none" };
+  };
+
   const publishInspectorPatch = (
     document: CardDocument,
     patch: CardPatch,
@@ -146,6 +243,7 @@ export function useCardEditor(
       template: activeTemplate.value,
       patch: clonePatch(patch),
     };
+    clearCompletedStatus();
   };
 
   const publishSystemReplace = (
@@ -159,6 +257,7 @@ export function useCardEditor(
       document,
       template,
     };
+    resetSystemState();
   };
 
   const isDirty = computed(() => {
@@ -176,6 +275,44 @@ export function useCardEditor(
     }
 
     return !avatarsEqual(document.avatar, defaults.avatar);
+  });
+
+  const isCanvasSynced = computed(() => {
+    const resourceState = currentResourceStatus.value.state;
+    return (
+      settledRevision.value === syncRequest.value.revision &&
+      (resourceState === "ready" || resourceState === "degraded")
+    );
+  });
+
+  const isReady = computed(() => isCanvasSynced.value);
+
+  const isBusy = computed(() => editorStatus.value.state === "working");
+
+  const isExporting = computed(
+    () =>
+      editorStatus.value.state === "working" &&
+      editorStatus.value.action === "export",
+  );
+
+  const canExport = computed(
+    () =>
+      isReady.value &&
+      Object.keys(currentFieldErrors.value).length === 0 &&
+      !isBusy.value,
+  );
+
+  const canCopy = computed(() => canExport.value && clipboardAvailable.value);
+
+  const statusMessage = computed(() => {
+    const status = editorStatus.value;
+    if (status.state === "idle") {
+      return "";
+    }
+    if (status.state === "working") {
+      return status.action === "copy" ? "正在复制图片…" : "正在导出图片…";
+    }
+    return status.message;
   });
 
   const updateField = (field: CardField, value: string): void => {
@@ -217,6 +354,7 @@ export function useCardEditor(
         patch.field,
         patch.value,
       );
+      clearCompletedStatus();
       return;
     }
 
@@ -228,6 +366,104 @@ export function useCardEditor(
       ...activeDocument.value,
       avatar: cloneAvatar(patch.value),
     };
+    clearCompletedStatus();
+  };
+
+  const handleSelectionChange = (selection: EditorSelection): void => {
+    if (selection.type === "field") {
+      assertActiveField(selection.field);
+    }
+
+    currentSelection.value = cloneSelection(selection);
+  };
+
+  const handleFieldValidation = (
+    field: CardField,
+    error: FieldValidationError | null,
+  ): void => {
+    if (error !== null && error.field !== field) {
+      throw new RangeError(
+        `Validation error field does not match target field: ${field}`,
+      );
+    }
+
+    const nextErrors: Partial<Record<CardField, FieldValidationError>> = {
+      ...currentFieldErrors.value,
+    };
+    if (error === null) {
+      delete nextErrors[field];
+    } else {
+      nextErrors[field] = cloneFieldValidationError(error);
+    }
+    currentFieldErrors.value = nextErrors;
+  };
+
+  const handleCanvasSettled = (payload: CanvasSettledPayload): boolean => {
+    if (payload.revision !== syncRequest.value.revision) {
+      return false;
+    }
+
+    const nextErrors: Partial<Record<CardField, FieldValidationError>> = {};
+    for (const error of payload.fieldErrors) {
+      nextErrors[error.field] = cloneFieldValidationError(error);
+    }
+    currentFieldErrors.value = nextErrors;
+    currentResourceStatus.value = cloneResourceStatus(payload.resourceStatus);
+    settledRevision.value = payload.revision;
+    return true;
+  };
+
+  const handleCanvasFailure = (
+    revision: number,
+    status: Extract<ResourceStatus, { state: "error" }>,
+  ): boolean => {
+    if (revision !== syncRequest.value.revision) {
+      return false;
+    }
+
+    currentResourceStatus.value = cloneResourceStatus(status);
+    return true;
+  };
+
+  const beginAction = (action: EditorAction): boolean => {
+    if (action === "export" ? !canExport.value : !canCopy.value) {
+      return false;
+    }
+
+    editorStatus.value = { state: "working", action };
+    return true;
+  };
+
+  const finishAction = (action: EditorAction, message: string): boolean => {
+    if (
+      editorStatus.value.state !== "working" ||
+      editorStatus.value.action !== action
+    ) {
+      return false;
+    }
+
+    editorStatus.value = { state: "success", action, message };
+    return true;
+  };
+
+  const failAction = (
+    action: EditorAction,
+    code: ExportErrorCode,
+    message: string,
+  ): boolean => {
+    if (
+      editorStatus.value.state !== "working" ||
+      editorStatus.value.action !== action
+    ) {
+      return false;
+    }
+
+    editorStatus.value = { state: "error", action, code, message };
+    return true;
+  };
+
+  const setClipboardAvailable = (available: boolean): void => {
+    clipboardAvailable.value = available;
   };
 
   const resetField = (field: CardField): void => {
@@ -323,10 +559,29 @@ export function useCardEditor(
       ShallowRef<CanvasSyncRequest>
     >,
     pendingTemplateId: readonly(pendingTemplate),
+    status: readonly(editorStatus),
+    resourceStatus: readonly(currentResourceStatus),
+    fieldErrors: readonly(currentFieldErrors),
+    selection: readonly(currentSelection),
     isDirty,
+    isCanvasSynced,
+    isReady,
+    isBusy,
+    isExporting,
+    canExport,
+    canCopy,
+    statusMessage,
     updateField,
     updateAvatar,
     handleCanvasPatch,
+    handleSelectionChange,
+    handleFieldValidation,
+    handleCanvasSettled,
+    handleCanvasFailure,
+    beginAction,
+    finishAction,
+    failAction,
+    setClipboardAvailable,
     resetField,
     resetAvatar,
     resetAll,

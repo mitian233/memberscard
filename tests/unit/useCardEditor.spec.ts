@@ -5,6 +5,8 @@ import type {
   AvatarTransform,
   CardPatch,
   CardTemplateDefinition,
+  FieldValidationError,
+  ResourceStatus,
   TemplateId,
 } from "@/types/card";
 
@@ -73,6 +75,16 @@ const templates: Readonly<Record<TemplateId, CardTemplateDefinition>> = {
 
 const createEditor = (initialTemplateId: TemplateId = "current") =>
   useCardEditor({ templates, initialTemplateId });
+
+const settleEditor = (editor: ReturnType<typeof createEditor>): void => {
+  expect(
+    editor.handleCanvasSettled({
+      revision: editor.canvasSyncRequest.value.revision,
+      resourceStatus: { state: "ready" },
+      fieldErrors: [],
+    }),
+  ).toBe(true);
+};
 
 describe("useCardEditor", () => {
   it("initializes defaults and an immediate replace sync request at revision one", () => {
@@ -389,5 +401,299 @@ describe("useCardEditor", () => {
     expect(editor.document.value).toBe(document);
     expect(editor.canvasSyncRequest.value).toBe(request);
     expect(editor.pendingTemplateId.value).toBe(pending);
+  });
+
+  it("initializes readiness, resource, validation, selection, and action state", () => {
+    const editor = createEditor();
+
+    expect(editor.status.value).toEqual({ state: "idle" });
+    expect(editor.resourceStatus.value).toEqual({ state: "loading" });
+    expect(editor.fieldErrors.value).toEqual({});
+    expect(editor.selection.value).toEqual({ type: "none" });
+    expect(editor.isCanvasSynced.value).toBe(false);
+    expect(editor.isReady.value).toBe(false);
+    expect(editor.isBusy.value).toBe(false);
+    expect(editor.isExporting.value).toBe(false);
+    expect(editor.canExport.value).toBe(false);
+    expect(editor.canCopy.value).toBe(false);
+    expect(editor.statusMessage.value).toBe("");
+  });
+
+  it("accepts only the current revision and clones settled resource and validation state", () => {
+    const editor = createEditor();
+    const firstError: FieldValidationError = {
+      field: "name",
+      code: "text-too-wide",
+      message: "first",
+    };
+    const finalError: FieldValidationError = {
+      field: "name",
+      code: "text-too-wide",
+      message: "last",
+    };
+    const degraded: Extract<ResourceStatus, { state: "degraded" }> = {
+      state: "degraded",
+      code: "font-fallback",
+      message: "fallback",
+    };
+
+    expect(
+      editor.handleCanvasSettled({
+        revision: 0,
+        resourceStatus: { state: "ready" },
+        fieldErrors: [],
+      }),
+    ).toBe(false);
+    expect(editor.resourceStatus.value).toEqual({ state: "loading" });
+    expect(editor.isCanvasSynced.value).toBe(false);
+
+    const payload = {
+      revision: editor.canvasSyncRequest.value.revision,
+      resourceStatus: degraded,
+      fieldErrors: [firstError, finalError],
+    } as const;
+    expect(editor.handleCanvasSettled(payload)).toBe(true);
+    expect(editor.resourceStatus.value).toEqual(degraded);
+    expect(editor.resourceStatus.value).not.toBe(degraded);
+    expect(editor.fieldErrors.value).toEqual({ name: finalError });
+    expect(editor.fieldErrors.value.name).not.toBe(finalError);
+    expect(editor.isCanvasSynced.value).toBe(true);
+    expect(editor.isReady.value).toBe(true);
+
+    degraded.message = "mutated";
+    finalError.message = "mutated";
+    expect(editor.resourceStatus.value).toEqual({
+      state: "degraded",
+      code: "font-fallback",
+      message: "fallback",
+    });
+    expect(editor.fieldErrors.value.name?.message).toBe("last");
+
+    editor.updateField("name", "next");
+    const revision = editor.canvasSyncRequest.value.revision;
+    expect(editor.isCanvasSynced.value).toBe(false);
+    expect(editor.resourceStatus.value.state).toBe("degraded");
+    expect(
+      editor.handleCanvasSettled({
+        revision: revision - 1,
+        resourceStatus: { state: "ready" },
+        fieldErrors: [],
+      }),
+    ).toBe(false);
+    expect(
+      editor.handleCanvasSettled({
+        revision: revision + 1,
+        resourceStatus: { state: "ready" },
+        fieldErrors: [],
+      }),
+    ).toBe(false);
+    expect(editor.isCanvasSynced.value).toBe(false);
+    expect(
+      editor.handleCanvasSettled({
+        revision,
+        resourceStatus: { state: "ready" },
+        fieldErrors: [],
+      }),
+    ).toBe(true);
+    expect(editor.fieldErrors.value).toEqual({});
+    expect(editor.isCanvasSynced.value).toBe(true);
+  });
+
+  it("keeps the current revision unsynced after a cloned canvas resource failure", () => {
+    const editor = createEditor();
+    const error: Extract<ResourceStatus, { state: "error" }> = {
+      state: "error",
+      code: "background-load-failed",
+      message: "background failed",
+      recoverable: true,
+    };
+
+    expect(editor.handleCanvasFailure(0, error)).toBe(false);
+    expect(editor.resourceStatus.value).toEqual({ state: "loading" });
+    expect(
+      editor.handleCanvasFailure(
+        editor.canvasSyncRequest.value.revision,
+        error,
+      ),
+    ).toBe(true);
+    expect(editor.resourceStatus.value).toEqual(error);
+    expect(editor.resourceStatus.value).not.toBe(error);
+    expect(editor.isCanvasSynced.value).toBe(false);
+    error.message = "changed";
+    expect(editor.resourceStatus.value).toEqual({
+      state: "error",
+      code: "background-load-failed",
+      message: "background failed",
+      recoverable: true,
+    });
+  });
+
+  it("validates field errors and selection without partial state changes", () => {
+    const editor = createEditor();
+    const error: FieldValidationError = {
+      field: "name",
+      code: "text-too-wide",
+      message: "too wide",
+    };
+
+    editor.handleFieldValidation("name", error);
+    expect(editor.fieldErrors.value).toEqual({ name: error });
+    expect(editor.fieldErrors.value.name).not.toBe(error);
+    error.message = "changed";
+    expect(editor.fieldErrors.value.name?.message).toBe("too wide");
+
+    const beforeMismatch = editor.fieldErrors.value;
+    expect(() => editor.handleFieldValidation("nameEn", error)).toThrowError(
+      RangeError,
+    );
+    expect(editor.fieldErrors.value).toBe(beforeMismatch);
+
+    editor.handleFieldValidation("name", null);
+    expect(editor.fieldErrors.value).toEqual({});
+
+    const fieldSelection = { type: "field" as const, field: "name" as const };
+    editor.handleSelectionChange(fieldSelection);
+    expect(editor.selection.value).toEqual(fieldSelection);
+    expect(editor.selection.value).not.toBe(fieldSelection);
+    editor.handleSelectionChange({ type: "avatar" });
+    expect(editor.selection.value).toEqual({ type: "avatar" });
+    editor.handleSelectionChange({ type: "none" });
+    expect(editor.selection.value).toEqual({ type: "none" });
+
+    const legacy = createEditor("legacy");
+    const beforeSelection = legacy.selection.value;
+    expect(() =>
+      legacy.handleSelectionChange({ type: "field", field: "birthday" }),
+    ).toThrowError(RangeError);
+    expect(legacy.selection.value).toBe(beforeSelection);
+  });
+
+  it("resets all system state on an effective system replace", () => {
+    const editor = createEditor();
+    settleEditor(editor);
+    editor.handleFieldValidation("name", {
+      field: "name",
+      code: "text-too-wide",
+      message: "too wide",
+    });
+    editor.handleSelectionChange({ type: "field", field: "name" });
+    expect(editor.beginAction("export")).toBe(false);
+    editor.updateField("name", "changed");
+    settleEditor(editor);
+    expect(editor.beginAction("export")).toBe(true);
+    expect(editor.finishAction("export", "done")).toBe(true);
+
+    editor.resetAll();
+    expect(editor.resourceStatus.value).toEqual({ state: "loading" });
+    expect(editor.fieldErrors.value).toEqual({});
+    expect(editor.selection.value).toEqual({ type: "none" });
+    expect(editor.status.value).toEqual({ state: "idle" });
+    expect(editor.isCanvasSynced.value).toBe(false);
+  });
+
+  it("coordinates action capabilities, transitions, stale completions, and messages", () => {
+    const editor = useCardEditor({
+      templates,
+      initialTemplateId: "current",
+      clipboardAvailable: true,
+    });
+    settleEditor(editor);
+    expect(editor.canExport.value).toBe(true);
+    expect(editor.canCopy.value).toBe(true);
+
+    expect(editor.beginAction("copy")).toBe(true);
+    expect(editor.status.value).toEqual({ state: "working", action: "copy" });
+    expect(editor.isBusy.value).toBe(true);
+    expect(editor.isExporting.value).toBe(false);
+    expect(editor.statusMessage.value).toBe("正在复制图片…");
+    expect(editor.beginAction("export")).toBe(false);
+    expect(editor.finishAction("export", "stale")).toBe(false);
+    expect(editor.status.value).toEqual({ state: "working", action: "copy" });
+    expect(editor.finishAction("copy", "copied")).toBe(true);
+    expect(editor.status.value).toEqual({
+      state: "success",
+      action: "copy",
+      message: "copied",
+    });
+    expect(editor.statusMessage.value).toBe("copied");
+
+    expect(editor.beginAction("export")).toBe(true);
+    expect(editor.isExporting.value).toBe(true);
+    expect(editor.statusMessage.value).toBe("正在导出图片…");
+    expect(editor.failAction("copy", "clipboard-failed", "stale")).toBe(false);
+    expect(editor.failAction("export", "download-failed", "failed")).toBe(true);
+    expect(editor.status.value).toEqual({
+      state: "error",
+      action: "export",
+      code: "download-failed",
+      message: "failed",
+    });
+    expect(editor.statusMessage.value).toBe("failed");
+    expect(editor.isBusy.value).toBe(false);
+
+    editor.handleFieldValidation("name", {
+      field: "name",
+      code: "text-too-wide",
+      message: "too wide",
+    });
+    expect(editor.canExport.value).toBe(false);
+    expect(editor.canCopy.value).toBe(false);
+    expect(editor.beginAction("export")).toBe(false);
+    expect(editor.status.value).toEqual({
+      state: "error",
+      action: "export",
+      code: "download-failed",
+      message: "failed",
+    });
+
+    editor.handleFieldValidation("name", null);
+    expect(editor.canExport.value).toBe(true);
+    editor.setClipboardAvailable(false);
+    expect(editor.canCopy.value).toBe(false);
+    expect(editor.status.value).toEqual({
+      state: "error",
+      action: "export",
+      code: "download-failed",
+      message: "failed",
+    });
+    editor.setClipboardAvailable(true);
+    expect(editor.canCopy.value).toBe(true);
+  });
+
+  it("clears completed action status only for effective document changes", () => {
+    const editor = createEditor();
+    settleEditor(editor);
+    expect(editor.beginAction("export")).toBe(true);
+    expect(editor.finishAction("export", "done")).toBe(true);
+    const sameDocument = editor.document.value;
+    const sameRequest = editor.canvasSyncRequest.value;
+    editor.updateField("name", sameDocument.name);
+    expect(editor.document.value).toBe(sameDocument);
+    expect(editor.canvasSyncRequest.value).toBe(sameRequest);
+    expect(editor.status.value).toEqual({
+      state: "success",
+      action: "export",
+      message: "done",
+    });
+
+    editor.updateField("name", "changed");
+    expect(editor.status.value).toEqual({ state: "idle" });
+    settleEditor(editor);
+    expect(editor.beginAction("export")).toBe(true);
+    expect(editor.finishAction("export", "done again")).toBe(true);
+    editor.handleCanvasPatch(
+      { type: "field", field: "name", value: "changed" },
+      "canvas",
+    );
+    expect(editor.status.value).toEqual({
+      state: "success",
+      action: "export",
+      message: "done again",
+    });
+    editor.handleCanvasPatch(
+      { type: "field", field: "name", value: "canvas changed" },
+      "canvas",
+    );
+    expect(editor.status.value).toEqual({ state: "idle" });
   });
 });
