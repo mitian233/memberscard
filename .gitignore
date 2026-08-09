@@ -28,3 +28,6 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+# Isolated Codex implementation worktrees
+.worktrees/
