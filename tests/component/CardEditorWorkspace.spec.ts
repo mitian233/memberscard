@@ -186,11 +186,22 @@ describe("CardEditorWorkspace", () => {
       const cardDocument = createCardDocument(template);
       const request = createRequest(cardDocument, template);
       const controller = {} as CardCanvasController;
+      const fieldErrors: Readonly<
+        Partial<Record<CardField, FieldValidationError>>
+      > = {
+        name: {
+          field: "name",
+          code: "text-too-wide",
+          message: "过长",
+        },
+      };
       const wrapper = mountWorkspace({
         template,
         document: cardDocument,
         syncRequest: request,
         canvasController: controller,
+        activeGroup: "avatar",
+        fieldErrors,
         dirty: true,
       });
       const main = wrapper.get("main");
@@ -200,6 +211,20 @@ describe("CardEditorWorkspace", () => {
         (element) => element.tagName,
       );
       expect(order).toEqual(["DIV", "DIV"]);
+      const toolbarWrapper = main.get(".editor-toolbar-wrapper").element;
+      const workspaceGrid = main.get(".editor-workspace-grid").element;
+      const previewRegion = main.get(".editor-preview-region").element;
+      const controls = main.get(".editor-controls").element;
+      expect(main.element.children[0]).toBe(toolbarWrapper);
+      expect(main.element.children[1]).toBe(workspaceGrid);
+      expect(workspaceGrid.children[0]).toBe(previewRegion);
+      expect(workspaceGrid.children[1]).toBe(controls);
+      expect(
+        Array.from(main.element.children).indexOf(toolbarWrapper),
+      ).toBeLessThan(Array.from(main.element.children).indexOf(workspaceGrid));
+      expect(
+        Array.from(workspaceGrid.children).indexOf(previewRegion),
+      ).toBeLessThan(Array.from(workspaceGrid.children).indexOf(controls));
       expect(main.get("[data-child=toolbar]").exists()).toBe(true);
       expect(main.get("[data-child=canvas]").exists()).toBe(true);
       expect(main.get("aside[aria-label='编辑控制']").exists()).toBe(true);
@@ -220,6 +245,10 @@ describe("CardEditorWorkspace", () => {
       );
       expect(toRaw(child(wrapper, "inspector").props("template"))).toBe(
         template,
+      );
+      expect(child(wrapper, "inspector").props("activeGroup")).toBe("avatar");
+      expect(toRaw(child(wrapper, "inspector").props("fieldErrors"))).toBe(
+        fieldErrors,
       );
       expect(child(wrapper, "exports").props("canExport")).toBe(true);
     }
@@ -247,16 +276,23 @@ describe("CardEditorWorkspace", () => {
     exports.vm.$emit("copy");
     exports.vm.$emit("export");
 
-    expect(wrapper.emitted("template-change")).toEqual([["legacy"]]);
-    expect(wrapper.emitted("reset-all")).toEqual([[]]);
-    expect(wrapper.emitted("update:activeGroup")).toEqual([["avatar"]]);
-    expect(wrapper.emitted("update-field")).toEqual([["name", "新名字"]]);
-    expect(wrapper.emitted("update-avatar")).toEqual([[avatar.value]]);
-    expect(wrapper.emitted("reset-field")).toEqual([["name"]]);
-    expect(wrapper.emitted("reset-avatar")).toEqual([[]]);
-    expect(wrapper.emitted("avatar-file")).toEqual([[file]]);
-    expect(wrapper.emitted("copy")).toEqual([[]]);
-    expect(wrapper.emitted("export")).toEqual([[]]);
+    expect(wrapper.emitted("template-change")).toHaveLength(1);
+    expect(wrapper.emitted("template-change")?.[0]?.[0]).toBe("legacy");
+    expect(wrapper.emitted("reset-all")).toHaveLength(1);
+    expect(wrapper.emitted("update:activeGroup")).toHaveLength(1);
+    expect(wrapper.emitted("update:activeGroup")?.[0]?.[0]).toBe("avatar");
+    expect(wrapper.emitted("update-field")).toHaveLength(1);
+    expect(wrapper.emitted("update-field")?.[0]?.[0]).toBe("name");
+    expect(wrapper.emitted("update-field")?.[0]?.[1]).toBe("新名字");
+    expect(wrapper.emitted("update-avatar")).toHaveLength(1);
+    expect(wrapper.emitted("update-avatar")?.[0]?.[0]).toBe(avatar.value);
+    expect(wrapper.emitted("reset-field")).toHaveLength(1);
+    expect(wrapper.emitted("reset-field")?.[0]?.[0]).toBe("name");
+    expect(wrapper.emitted("reset-avatar")).toHaveLength(1);
+    expect(wrapper.emitted("avatar-file")).toHaveLength(1);
+    expect(wrapper.emitted("avatar-file")?.[0]?.[0]).toBe(file);
+    expect(wrapper.emitted("copy")).toHaveLength(1);
+    expect(wrapper.emitted("export")).toHaveLength(1);
   });
 
   it("forwards every canvas event with exact payloads and source", () => {
@@ -284,21 +320,29 @@ describe("CardEditorWorkspace", () => {
       code: "text-too-wide",
       message: "过长",
     };
+    const resourcePayload = { revision: 1, status: resource };
     canvas.vm.$emit("ready", ready);
-    canvas.vm.$emit("resource-error", { revision: 1, status: resource });
+    canvas.vm.$emit("resource-error", resourcePayload);
     canvas.vm.$emit("change", patch, "canvas");
     canvas.vm.$emit("selection-change", selection);
     canvas.vm.$emit("edit-cancel", "name", "恢复名");
     canvas.vm.$emit("validation-error", "name", error);
 
-    expect(wrapper.emitted("canvas-ready")).toEqual([[ready]]);
-    expect(wrapper.emitted("resource-error")).toEqual([
-      [{ revision: 1, status: resource }],
-    ]);
-    expect(wrapper.emitted("canvas-change")).toEqual([[patch, "canvas"]]);
-    expect(wrapper.emitted("selection-change")).toEqual([[selection]]);
-    expect(wrapper.emitted("edit-cancel")).toEqual([["name", "恢复名"]]);
-    expect(wrapper.emitted("validation-error")).toEqual([["name", error]]);
+    expect(wrapper.emitted("canvas-ready")).toHaveLength(1);
+    expect(wrapper.emitted("canvas-ready")?.[0]?.[0]).toBe(ready);
+    expect(wrapper.emitted("resource-error")).toHaveLength(1);
+    expect(wrapper.emitted("resource-error")?.[0]?.[0]).toBe(resourcePayload);
+    expect(wrapper.emitted("canvas-change")).toHaveLength(1);
+    expect(wrapper.emitted("canvas-change")?.[0]?.[0]).toBe(patch);
+    expect(wrapper.emitted("canvas-change")?.[0]?.[1]).toBe("canvas");
+    expect(wrapper.emitted("selection-change")).toHaveLength(1);
+    expect(wrapper.emitted("selection-change")?.[0]?.[0]).toBe(selection);
+    expect(wrapper.emitted("edit-cancel")).toHaveLength(1);
+    expect(wrapper.emitted("edit-cancel")?.[0]?.[0]).toBe("name");
+    expect(wrapper.emitted("edit-cancel")?.[0]?.[1]).toBe("恢复名");
+    expect(wrapper.emitted("validation-error")).toHaveLength(1);
+    expect(wrapper.emitted("validation-error")?.[0]?.[0]).toBe("name");
+    expect(wrapper.emitted("validation-error")?.[0]?.[1]).toBe(error);
   });
 
   it("renders loading, ready, degraded, and error recovery status text", async () => {
@@ -386,6 +430,14 @@ describe("CardEditorWorkspace", () => {
       statusMessage: "正在导出图片…",
       copyUnavailableReason: "请使用保存 PNG",
     });
+
+    const emptyUploadWrapper = mountWorkspace({ uploadMessage: "" });
+    const emptyUploadRegion = emptyUploadWrapper.get("[data-upload-status]");
+    expect(emptyUploadRegion.exists()).toBe(true);
+    expect(emptyUploadRegion.text()).toBe("");
+    expect(emptyUploadRegion.attributes("role")).toBe("status");
+    expect(emptyUploadRegion.attributes("aria-live")).toBe("polite");
+    expect(emptyUploadRegion.attributes("aria-atomic")).toBe("true");
   });
 
   it("keeps the responsive workspace CSS contracts scoped and gradient-free", () => {
@@ -396,11 +448,23 @@ describe("CardEditorWorkspace", () => {
     expect(scopedStyle).not.toMatch(/gradient/i);
     expect(scopedStyle).not.toMatch(/position\s*:\s*fixed/i);
     expect(source).toMatch(
+      /\.card-editor-workspace\s*\{[^}]*max-width:\s*90rem[^}]*margin:\s*0 auto[^}]*padding:\s*1rem\s+clamp\(/,
+    );
+    expect(source).toMatch(
+      /\.editor-preview-region\s*\{[^}]*position:\s*sticky/,
+    );
+    expect(source).toMatch(
       /grid-template-columns:\s*minmax\(0,\s*13fr\)\s+minmax\(320px,\s*7fr\)/,
     );
     expect(source).toMatch(/@media\s*\(max-width:\s*64rem\)/);
     expect(source).toMatch(
       /@media[\s\S]*?\.editor-toolbar-wrapper\s*\{[^}]*position:\s*sticky/,
+    );
+    expect(source).toMatch(
+      /@media[\s\S]*?\.editor-workspace-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
+    );
+    expect(source).toMatch(
+      /@media[\s\S]*?\.editor-preview-region\s*\{[^}]*position:\s*static/,
     );
     expect(source).toMatch(
       /\.editor-export-wrapper\s*\{[^}]*padding-bottom:\s*calc\(1rem\s*\+\s*env\(safe-area-inset-bottom\)\)/,
