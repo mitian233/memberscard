@@ -5,15 +5,12 @@ import type {
   AssetLoader,
   ExportCanvasAdapter,
   ExportCanvasFactory,
+  FabricCardScene,
   RenderCardOptions,
   TextMeasurer,
 } from "@/fabric/types";
 import { renderCardDocument } from "@/fabric/renderCardDocument";
-import type {
-  CardDocument,
-  CardTemplateDefinition,
-  FabricCardScene,
-} from "@/types/card";
+import type { CardDocument, CardTemplateDefinition } from "@/types/card";
 import {
   CardExportError,
   createBrowserExportCanvasFactory,
@@ -66,6 +63,20 @@ function createBlob(type: string): Blob {
     value: type,
   });
   return blob;
+}
+
+function deepFreeze<T extends object>(value: T): Readonly<T> {
+  for (const key of Reflect.ownKeys(value)) {
+    const child = Reflect.get(value, key);
+    if (typeof child === "object" && child !== null) {
+      deepFreeze(child as object);
+    }
+  }
+  return Object.freeze(value);
+}
+
+function ownDescriptors(value: object): PropertyDescriptorMap {
+  return Object.getOwnPropertyDescriptors(value);
 }
 
 function createAssets(): AssetLoader {
@@ -217,8 +228,22 @@ describe("export card", () => {
   it("lazily constructs the default StaticCanvas with exact options", async () => {
     vi.resetModules();
     const { raw } = createRawCanvas();
+    let constructedWithNew = false;
     const staticCanvas = vi.fn(function mockStaticCanvas() {
+      constructedWithNew = new.target !== undefined;
       return raw;
+    });
+    const documentDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "document",
+    );
+    let documentReads = 0;
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      get() {
+        documentReads += 1;
+        throw new Error("document accessed during import or factory creation");
+      },
     });
     vi.doMock("fabric", async () => {
       const actual = await vi.importActual<typeof import("fabric")>("fabric");
@@ -227,16 +252,25 @@ describe("export card", () => {
 
     try {
       const imported = await import("@/fabric/exportCard");
+      expect(documentReads).toBe(0);
       expect(staticCanvas).not.toHaveBeenCalled();
       const factory = imported.createBrowserExportCanvasFactory();
+      expect(documentReads).toBe(0);
       expect(staticCanvas).not.toHaveBeenCalled();
       factory.create(960, 640);
+      expect(documentReads).toBe(0);
       expect(staticCanvas).toHaveBeenCalledWith(undefined, {
         width: 960,
         height: 640,
         renderOnAddRemove: false,
       });
+      expect(constructedWithNew).toBe(true);
     } finally {
+      if (documentDescriptor === undefined) {
+        Reflect.deleteProperty(globalThis, "document");
+      } else {
+        Object.defineProperty(globalThis, "document", documentDescriptor);
+      }
       vi.doUnmock("fabric");
       vi.resetModules();
     }
@@ -244,7 +278,8 @@ describe("export card", () => {
 
   it("renders exact document/options then exports a fixed four-times PNG", async () => {
     const order: string[] = [];
-    const adapter = createAdapter(createPngBlob(), order);
+    const blob = createPngBlob();
+    const adapter = createAdapter(blob, order);
     const factory: ExportCanvasFactory = {
       create: vi.fn(() => adapter),
     };
@@ -260,8 +295,7 @@ describe("export card", () => {
       createOptions(factory, render, assets, measureText),
     );
 
-    expect(result).toBeInstanceOf(Blob);
-    expect(result.type).toBe("image/png");
+    expect(result).toBe(blob);
     expect(factory.create).toHaveBeenCalledWith(960, 640);
     expect(render).toHaveBeenCalledTimes(1);
     expect(render).toHaveBeenCalledWith(adapter, document, template, {
@@ -282,6 +316,58 @@ describe("export card", () => {
       "toBlob",
       "dispose",
     ]);
+  });
+
+  it("validates before resolving default dependencies or constructing a canvas", async () => {
+    vi.resetModules();
+    const { raw } = createRawCanvas();
+    const staticCanvas = vi.fn(function mockStaticCanvas() {
+      return raw;
+    });
+    const createBrowserAssetLoader = vi.fn(() => createAssets());
+    const createBrowserTextMeasurer = vi.fn(() => vi.fn<TextMeasurer>());
+    const renderCardDocument = vi.fn();
+    vi.doMock("fabric", async () => {
+      const actual = await vi.importActual<typeof import("fabric")>("fabric");
+      return { ...actual, StaticCanvas: staticCanvas };
+    });
+    vi.doMock("@/fabric/browserResources", () => ({
+      createBrowserAssetLoader,
+      createBrowserTextMeasurer,
+    }));
+    vi.doMock("@/fabric/renderCardDocument", () => ({ renderCardDocument }));
+
+    try {
+      const imported = await import("@/fabric/exportCard");
+      await expect(
+        imported.exportCardPng(createDocument("legacy"), createTemplate()),
+      ).rejects.toBeInstanceOf(RangeError);
+      for (const [width, height] of [
+        [0, 640],
+        [960, 0],
+        [960.5, 640],
+        [960, 640.5],
+        [Number.NaN, 640],
+        [960, Number.POSITIVE_INFINITY],
+      ]) {
+        await expect(
+          imported.exportCardPng(
+            createDocument(),
+            createTemplate({ canvas: { width, height, radius: 0 } }),
+          ),
+        ).rejects.toBeInstanceOf(RangeError);
+      }
+
+      expect(createBrowserAssetLoader).not.toHaveBeenCalled();
+      expect(createBrowserTextMeasurer).not.toHaveBeenCalled();
+      expect(staticCanvas).not.toHaveBeenCalled();
+      expect(renderCardDocument).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock("fabric");
+      vi.doUnmock("@/fabric/browserResources");
+      vi.doUnmock("@/fabric/renderCardDocument");
+      vi.resetModules();
+    }
   });
 
   it("rejects mismatched or invalid templates before any side effects", async () => {
@@ -425,31 +511,108 @@ describe("export card", () => {
   it("creates a fresh adapter for consecutive exports without mutating inputs", async () => {
     const firstAdapter = createAdapter();
     const secondAdapter = createAdapter();
-    const factory: ExportCanvasFactory = {
+    const factory = Object.freeze({
       create: vi
         .fn<ExportCanvasFactory["create"]>()
         .mockReturnValueOnce(firstAdapter)
         .mockReturnValueOnce(secondAdapter),
-    };
+    });
     const render = createRender();
     const document = createDocument();
     const template = createTemplate();
-    const documentSnapshot = JSON.stringify(document);
-    const templateSnapshot = JSON.stringify(template);
+    const frozenDocument = deepFreeze({
+      ...document,
+      avatar: { ...document.avatar },
+    });
+    const frozenTemplate = deepFreeze({
+      ...template,
+      canvas: { ...template.canvas },
+      assets: { ...template.assets },
+      defaults: {
+        ...template.defaults,
+        avatar: { ...template.defaults.avatar },
+      },
+      avatarFrame: { ...template.avatarFrame },
+      fields: { ...template.fields },
+      staticObjects: [...template.staticObjects],
+    });
+    const assets = Object.freeze(createAssets());
+    const measureText = vi.fn<TextMeasurer>(() => 100);
+    const options = Object.freeze({ factory, assets, measureText, render });
+    const before = {
+      documentKeys: Reflect.ownKeys(frozenDocument),
+      documentAvatarKeys: Reflect.ownKeys(frozenDocument.avatar),
+      documentDescriptors: ownDescriptors(frozenDocument),
+      documentAvatarDescriptors: ownDescriptors(frozenDocument.avatar),
+      templateKeys: Reflect.ownKeys(frozenTemplate),
+      templateCanvasKeys: Reflect.ownKeys(frozenTemplate.canvas),
+      templateAssetKeys: Reflect.ownKeys(frozenTemplate.assets),
+      templateDefaultKeys: Reflect.ownKeys(frozenTemplate.defaults),
+      templateDefaultAvatarKeys: Reflect.ownKeys(
+        frozenTemplate.defaults.avatar,
+      ),
+      templateDescriptors: ownDescriptors(frozenTemplate),
+      templateCanvasDescriptors: ownDescriptors(frozenTemplate.canvas),
+      templateAssetDescriptors: ownDescriptors(frozenTemplate.assets),
+      templateDefaultDescriptors: ownDescriptors(frozenTemplate.defaults),
+      templateDefaultAvatarDescriptors: ownDescriptors(
+        frozenTemplate.defaults.avatar,
+      ),
+      optionKeys: Reflect.ownKeys(options),
+      factoryKeys: Reflect.ownKeys(factory),
+      assetKeys: Reflect.ownKeys(assets),
+      optionDescriptors: ownDescriptors(options),
+      factoryDescriptors: ownDescriptors(factory),
+      assetDescriptors: ownDescriptors(assets),
+    };
 
-    await exportCardPng(
-      Object.freeze(document),
-      Object.freeze(template),
-      createOptions(factory, render),
-    );
-    await exportCardPng(document, template, createOptions(factory, render));
+    await exportCardPng(frozenDocument, frozenTemplate, options);
+    await exportCardPng(frozenDocument, frozenTemplate, options);
 
     expect(factory.create).toHaveBeenCalledTimes(2);
     expect(render).toHaveBeenCalledTimes(2);
-    expect(render.mock.calls[0]?.[1]).toBe(document);
-    expect(render.mock.calls[1]?.[1]).toBe(document);
-    expect(JSON.stringify(document)).toBe(documentSnapshot);
-    expect(JSON.stringify(template)).toBe(templateSnapshot);
+    expect(render.mock.calls[0]?.[1]).toBe(frozenDocument);
+    expect(render.mock.calls[1]?.[1]).toBe(frozenDocument);
+    expect(Reflect.ownKeys(frozenDocument)).toEqual(before.documentKeys);
+    expect(Reflect.ownKeys(frozenDocument.avatar)).toEqual(
+      before.documentAvatarKeys,
+    );
+    expect(ownDescriptors(frozenDocument)).toEqual(before.documentDescriptors);
+    expect(ownDescriptors(frozenDocument.avatar)).toEqual(
+      before.documentAvatarDescriptors,
+    );
+    expect(Reflect.ownKeys(frozenTemplate)).toEqual(before.templateKeys);
+    expect(Reflect.ownKeys(frozenTemplate.canvas)).toEqual(
+      before.templateCanvasKeys,
+    );
+    expect(Reflect.ownKeys(frozenTemplate.assets)).toEqual(
+      before.templateAssetKeys,
+    );
+    expect(Reflect.ownKeys(frozenTemplate.defaults)).toEqual(
+      before.templateDefaultKeys,
+    );
+    expect(Reflect.ownKeys(frozenTemplate.defaults.avatar)).toEqual(
+      before.templateDefaultAvatarKeys,
+    );
+    expect(ownDescriptors(frozenTemplate)).toEqual(before.templateDescriptors);
+    expect(ownDescriptors(frozenTemplate.canvas)).toEqual(
+      before.templateCanvasDescriptors,
+    );
+    expect(ownDescriptors(frozenTemplate.assets)).toEqual(
+      before.templateAssetDescriptors,
+    );
+    expect(ownDescriptors(frozenTemplate.defaults)).toEqual(
+      before.templateDefaultDescriptors,
+    );
+    expect(ownDescriptors(frozenTemplate.defaults.avatar)).toEqual(
+      before.templateDefaultAvatarDescriptors,
+    );
+    expect(Reflect.ownKeys(options)).toEqual(before.optionKeys);
+    expect(Reflect.ownKeys(factory)).toEqual(before.factoryKeys);
+    expect(Reflect.ownKeys(assets)).toEqual(before.assetKeys);
+    expect(ownDescriptors(options)).toEqual(before.optionDescriptors);
+    expect(ownDescriptors(factory)).toEqual(before.factoryDescriptors);
+    expect(ownDescriptors(assets)).toEqual(before.assetDescriptors);
   });
 
   it("short-circuits injected resources and resolves each omitted default once", async () => {
