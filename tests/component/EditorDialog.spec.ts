@@ -167,6 +167,15 @@ describe("EditorDialog", () => {
     backdrop.dispatchEvent(click);
     expect(wrapper.emitted("close")).toEqual([[]]);
 
+    const pointerDialog = mountDialog({ open: true }, { default: "Pointer" });
+    await nextTick();
+    pointerDialog
+      .get(".editor-dialog-backdrop")
+      .element.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true }),
+      );
+    expect(pointerDialog.emitted("close")).toEqual([[]]);
+
     const noTargets = mountDialog({ open: true }, { default: "No controls" });
     await nextTick();
     (

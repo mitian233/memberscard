@@ -189,6 +189,7 @@ onBeforeUnmount(() => {
   <div
     v-if="props.open"
     class="editor-dialog-backdrop"
+    @pointerdown="handleBackdropClick"
     @click="handleBackdropClick"
   >
     <section
