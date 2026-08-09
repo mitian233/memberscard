@@ -203,6 +203,22 @@ function fieldError(field: CardField): FieldValidationError {
   return { field, code: "text-too-wide", message: `${field} is too wide` };
 }
 
+function freezeDocument(document: CardDocument): CardDocument {
+  Object.freeze(document.avatar);
+  return Object.freeze(document);
+}
+
+function freezePatch(patch: CardPatch): CardPatch {
+  if (patch.type === "avatar") Object.freeze(patch.value);
+  return Object.freeze(patch);
+}
+
+function freezeRequestInputs(request: CanvasSyncRequest): CanvasSyncRequest {
+  freezeDocument(request.document);
+  if (request.patch !== undefined) freezePatch(request.patch);
+  return Object.freeze(request);
+}
+
 function deferred<T>(): {
   promise: Promise<T>;
   resolve(value: T): void;
@@ -218,8 +234,9 @@ function deferred<T>(): {
 }
 
 async function flushQueue(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let index = 0; index < 6; index += 1) {
+    await Promise.resolve();
+  }
 }
 
 afterEach(() => {
@@ -238,19 +255,25 @@ describe("card canvas session", () => {
       ),
     );
 
-    await expect(session.submit(replaceRequest(0))).rejects.toBeInstanceOf(
+    await expect(session.submit(replaceRequest(-1))).rejects.toBeInstanceOf(
+      RangeError,
+    );
+    await expect(session.submit(replaceRequest(1.5))).rejects.toBeInstanceOf(
       RangeError,
     );
     await expect(
+      session.submit(replaceRequest(Number.NaN)),
+    ).rejects.toBeInstanceOf(RangeError);
+    await expect(
       session.submit({
-        ...replaceRequest(1),
+        ...replaceRequest(100),
         patch: { type: "field", field: "name", value: "bad" },
       }),
     ).rejects.toBeInstanceOf(RangeError);
     await expect(
       session.submit({
         ...patchRequest(
-          1,
+          100,
           { type: "field", field: "name", value: "bad" },
           documentFor(),
         ),
@@ -318,8 +341,14 @@ describe("card canvas session", () => {
     const thirdDocument = documentFor(currentCardTemplate, {
       avatar: avatar({ src: firstDocument.avatar.src, left: 10 }),
     });
+    const avatarError = fieldError("birthday");
+    fixtures.scene.fieldErrors = [avatarError];
 
-    await session.submit(replaceRequest(1, currentCardTemplate, firstDocument));
+    const firstRequest = freezeRequestInputs(
+      replaceRequest(1, currentCardTemplate, firstDocument),
+    );
+    const firstSnapshot = JSON.stringify(firstRequest);
+    await session.submit(firstRequest);
     const bindOptions = fixtures.bind.mock.calls[0]?.[2];
     if (bindOptions === undefined) throw new Error("missing bind options");
     expect(bindOptions.avatarSource()).toBe(firstDocument.avatar.src);
@@ -333,7 +362,13 @@ describe("card canvas session", () => {
       field: "name",
       error: null,
     });
-    await session.submit(patchRequest(2, fieldPatch, secondDocument));
+    const secondRequest = freezeRequestInputs(
+      patchRequest(2, fieldPatch, secondDocument),
+    );
+    const secondSnapshot = JSON.stringify(secondRequest);
+    await session.submit(secondRequest);
+    expect(JSON.stringify(firstRequest)).toBe(firstSnapshot);
+    expect(JSON.stringify(secondRequest)).toBe(secondSnapshot);
 
     expect(fixtures.applyPatch).toHaveBeenCalledTimes(1);
     expect(fixtures.applyPatch.mock.calls[0]).toEqual([
@@ -354,7 +389,12 @@ describe("card canvas session", () => {
       type: "avatar",
       value: { ...thirdDocument.avatar },
     };
-    await session.submit(patchRequest(3, avatarPatch, thirdDocument));
+    const thirdRequest = freezeRequestInputs(
+      patchRequest(3, avatarPatch, thirdDocument),
+    );
+    const thirdSnapshot = JSON.stringify(thirdRequest);
+    await session.submit(thirdRequest);
+    expect(JSON.stringify(thirdRequest)).toBe(thirdSnapshot);
 
     expect(fixtures.applyPatch).toHaveBeenCalledTimes(2);
     expect(fixtures.applyPatch.mock.calls[1]?.[3]).toEqual({
@@ -364,6 +404,7 @@ describe("card canvas session", () => {
     });
     expect(fixtures.render).toHaveBeenCalledTimes(1);
     expect(fixtures.bind).toHaveBeenCalledTimes(1);
+    expect(fixtures.scene.fieldErrors).toEqual([avatarError]);
   });
 
   it("replaces and clears only the applied field validation error while preserving avatar errors", async () => {
@@ -410,6 +451,104 @@ describe("card canvas session", () => {
       existingNameEnError,
     ]);
     expect(callbacks.onFieldValidation).toHaveBeenLastCalledWith("name", null);
+  });
+
+  it("swallows notification callback errors while keeping handled work and later revisions healthy", async () => {
+    const imported = await getSessionModule();
+    const fixtures = createControllerFixtures();
+    const callbacks = createCallbacks();
+    const session = imported.createCardCanvasSession(
+      createSessionOptions(fixtures.controller, callbacks, fixtures.canvas),
+    );
+    const settledError = new Error("settled callback");
+    vi.mocked(callbacks.onSettled).mockImplementationOnce(() => {
+      throw settledError;
+    });
+
+    await expect(session.submit(replaceRequest(1))).resolves.toBeUndefined();
+
+    const renderError = new Error("render callback");
+    fixtures.render.mockReset().mockRejectedValueOnce(renderError);
+    vi.mocked(callbacks.onResourceError).mockImplementationOnce(() => {
+      throw new Error("resource callback");
+    });
+    await expect(session.submit(replaceRequest(2))).resolves.toBeUndefined();
+
+    fixtures.render.mockResolvedValueOnce(createSceneFake());
+    await expect(session.submit(replaceRequest(3))).resolves.toBeUndefined();
+    expect(callbacks.onSettled).toHaveBeenCalledTimes(2);
+    expect(callbacks.onResourceError).toHaveBeenCalledTimes(1);
+  });
+
+  it("commits an applied field patch before reentrant submit and suppresses the superseded settle", async () => {
+    const imported = await getSessionModule();
+    const fixtures = createControllerFixtures();
+    const callbacks = createCallbacks();
+    const session = imported.createCardCanvasSession(
+      createSessionOptions(fixtures.controller, callbacks, fixtures.canvas),
+    );
+    await session.submit(replaceRequest(1));
+    const nextDocument = documentFor(currentCardTemplate, {
+      name: "reentrant",
+    });
+    const recoveryScene = createSceneFake();
+    fixtures.render.mockResolvedValueOnce(recoveryScene);
+    let nextSubmit: Promise<void> | undefined;
+    vi.mocked(callbacks.onFieldValidation).mockImplementationOnce(() => {
+      nextSubmit = session.submit(
+        replaceRequest(3, currentCardTemplate, nextDocument),
+      );
+    });
+    fixtures.applyPatch.mockReturnValueOnce({
+      kind: "applied",
+      field: "name",
+      error: fieldError("name"),
+    });
+
+    await session.submit(
+      patchRequest(
+        2,
+        { type: "field", field: "name", value: "reentrant" },
+        nextDocument,
+      ),
+    );
+    expect(nextSubmit).toBeDefined();
+    expect(callbacks.onSettled).toHaveBeenCalledTimes(1);
+    await nextSubmit;
+    expect(callbacks.onSettled).toHaveBeenLastCalledWith(
+      expect.objectContaining({ revision: 3 }),
+    );
+    expect(fixtures.scene.fieldErrors).toEqual([fieldError("name")]);
+  });
+
+  it("commits an applied patch before reentrant disposal and does not settle the disposed revision", async () => {
+    const imported = await getSessionModule();
+    const fixtures = createControllerFixtures();
+    const callbacks = createCallbacks();
+    const session = imported.createCardCanvasSession(
+      createSessionOptions(fixtures.controller, callbacks, fixtures.canvas),
+    );
+    await session.submit(replaceRequest(1));
+    let disposal: Promise<void> | undefined;
+    vi.mocked(callbacks.onFieldValidation).mockImplementationOnce(() => {
+      disposal = session.dispose();
+    });
+    fixtures.applyPatch.mockReturnValueOnce({
+      kind: "applied",
+      field: "name",
+      error: fieldError("name"),
+    });
+
+    await session.submit(
+      patchRequest(
+        2,
+        { type: "field", field: "name", value: "disposed" },
+        documentFor(currentCardTemplate, { name: "disposed" }),
+      ),
+    );
+    expect(disposal).toBeDefined();
+    expect(callbacks.onSettled).toHaveBeenCalledTimes(1);
+    await disposal;
   });
 
   it("falls back to full render when avatar source changes", async () => {
@@ -602,21 +741,27 @@ describe("card canvas session", () => {
     );
     const status = fixtures.errorStatus;
     const renderError = new Error("render");
+    const renderDocument = documentFor();
     fixtures.render.mockReset().mockRejectedValueOnce(renderError);
-    await session.submit(replaceRequest(1));
+    await session.submit(
+      replaceRequest(1, currentCardTemplate, renderDocument),
+    );
     expect(fixtures.classifyResourceError).toHaveBeenCalledWith(
       renderError,
-      expect.any(Object),
+      renderDocument,
       currentCardTemplate,
     );
+    expect(fixtures.classifyResourceError).toHaveBeenCalledTimes(1);
     expect(callbacks.onResourceError).toHaveBeenCalledWith({
       revision: 1,
       status,
     });
+    expect(callbacks.onResourceError).toHaveBeenCalledTimes(1);
 
     fixtures.render.mockResolvedValueOnce(fixtures.scene);
     await session.submit(replaceRequest(2));
     const applyError = new Error("apply");
+    const applyDocument = documentFor(currentCardTemplate, { name: "Apply" });
     fixtures.applyPatch.mockImplementationOnce(() => {
       throw applyError;
     });
@@ -624,34 +769,39 @@ describe("card canvas session", () => {
       patchRequest(
         3,
         { type: "field", field: "name", value: "Apply" },
-        documentFor(currentCardTemplate, { name: "Apply" }),
+        applyDocument,
       ),
     );
     expect(fixtures.classifyResourceError).toHaveBeenCalledWith(
       applyError,
-      expect.any(Object),
+      applyDocument,
       currentCardTemplate,
     );
+    expect(fixtures.classifyResourceError).toHaveBeenCalledTimes(2);
     expect(callbacks.onResourceError).toHaveBeenLastCalledWith({
       revision: 3,
       status,
     });
+    expect(callbacks.onResourceError).toHaveBeenCalledTimes(2);
 
     const bindError = new Error("bind");
+    const bindDocument = documentFor(currentCardTemplate, { name: "Bind" });
     fixtures.render.mockResolvedValueOnce(createSceneFake());
     fixtures.bind.mockImplementationOnce(() => {
       throw bindError;
     });
-    await session.submit(replaceRequest(4));
+    await session.submit(replaceRequest(4, currentCardTemplate, bindDocument));
     expect(fixtures.classifyResourceError).toHaveBeenCalledWith(
       bindError,
-      expect.any(Object),
+      bindDocument,
       currentCardTemplate,
     );
+    expect(fixtures.classifyResourceError).toHaveBeenCalledTimes(3);
     expect(callbacks.onResourceError).toHaveBeenLastCalledWith({
       revision: 4,
       status,
     });
+    expect(callbacks.onResourceError).toHaveBeenCalledTimes(3);
 
     fixtures.render.mockResolvedValueOnce(createSceneFake());
     await session.submit(replaceRequest(5));
@@ -698,10 +848,23 @@ describe("card canvas session", () => {
     expect(callbacks.onDocumentPatch).toHaveBeenCalledTimes(1);
     expect(callbacks.onSelectionChange).toHaveBeenCalledTimes(1);
 
+    enabled.mockReturnValue(true);
+    vi.mocked(callbacks.onDocumentPatch).mockImplementationOnce(() => {
+      throw new Error("forward callback");
+    });
+    expect(() => bindOptions.onDocumentPatch(patch, "canvas")).not.toThrow();
+    expect(callbacks.onDocumentPatch).toHaveBeenCalledTimes(2);
+
+    enabled.mockImplementationOnce(() => {
+      throw new Error("interaction guard");
+    });
+    expect(() => bindOptions.onSelectionChange(selection)).not.toThrow();
+    expect(callbacks.onSelectionChange).toHaveBeenCalledTimes(1);
+
     await session.dispose();
     bindOptions.onDocumentPatch(patch, "canvas");
     bindOptions.onSelectionChange(selection);
-    expect(callbacks.onDocumentPatch).toHaveBeenCalledTimes(1);
+    expect(callbacks.onDocumentPatch).toHaveBeenCalledTimes(2);
     expect(callbacks.onSelectionChange).toHaveBeenCalledTimes(1);
   });
 
@@ -791,6 +954,60 @@ describe("card canvas session", () => {
     await secondSession.submit(replaceRequest(1));
     await expect(secondSession.dispose()).rejects.toBe(listenerError);
     expect(secondFixtures.canvas.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for an in-flight render and deferred canvas disposal in listener-then-canvas order", async () => {
+    const imported = await getSessionModule();
+    const fixtures = createControllerFixtures();
+    const renderResult = deferred<FabricCardScene>();
+    const canvasResult = deferred<void>();
+    fixtures.render.mockReset().mockReturnValue(renderResult.promise);
+    const order: string[] = [];
+    fixtures.scene.disposeObjectListeners = vi.fn(() => {
+      order.push("listeners");
+    });
+    fixtures.canvas.dispose = vi.fn(() => {
+      order.push("canvas");
+      return canvasResult.promise;
+    });
+    const session = imported.createCardCanvasSession(
+      createSessionOptions(
+        fixtures.controller,
+        createCallbacks(),
+        fixtures.canvas,
+      ),
+    );
+    const submit = session.submit(replaceRequest(1));
+    await flushQueue();
+    const disposal = session.dispose();
+    expect(fixtures.canvas.dispose).not.toHaveBeenCalled();
+
+    renderResult.resolve(fixtures.scene);
+    await flushQueue();
+    expect(order).toEqual(["listeners", "canvas"]);
+    expect(fixtures.canvas.dispose).toHaveBeenCalledTimes(1);
+    canvasResult.resolve();
+    await Promise.all([submit, disposal]);
+  });
+
+  it("still runs listener cleanup when canvas disposal rejects and returns the canvas error", async () => {
+    const imported = await getSessionModule();
+    const fixtures = createControllerFixtures();
+    const canvasError = new Error("canvas dispose");
+    const listenerCleanup = vi.fn();
+    fixtures.scene.disposeObjectListeners = listenerCleanup;
+    fixtures.canvas.dispose = vi.fn(() => Promise.reject(canvasError));
+    const session = imported.createCardCanvasSession(
+      createSessionOptions(
+        fixtures.controller,
+        createCallbacks(),
+        fixtures.canvas,
+      ),
+    );
+    await session.submit(replaceRequest(1));
+
+    await expect(session.dispose()).rejects.toBe(canvasError);
+    expect(listenerCleanup).toHaveBeenCalledTimes(1);
   });
 
   it("marks disposed synchronously and leaves queued requests and input values untouched", async () => {

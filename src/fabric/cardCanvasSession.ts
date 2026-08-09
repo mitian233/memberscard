@@ -101,6 +101,22 @@ export function createCardCanvasSession(
   const isCurrent = (revision: number): boolean =>
     !disposed && revision === highestRequestedRevision;
 
+  const safeNotify = (notify: () => void): void => {
+    try {
+      notify();
+    } catch {
+      // External notification handlers must not poison the session queue.
+    }
+  };
+
+  const interactionEnabled = (): boolean => {
+    try {
+      return options.callbacks.interactionEnabled();
+    } catch {
+      return false;
+    }
+  };
+
   const classifyFailure = (
     request: CanvasSyncRequest,
     error: unknown,
@@ -112,9 +128,11 @@ export function createCardCanvasSession(
       request.document,
       request.template,
     );
-    options.callbacks.onResourceError({
-      revision: request.revision,
-      status,
+    safeNotify(() => {
+      options.callbacks.onResourceError({
+        revision: request.revision,
+        status,
+      });
     });
   };
 
@@ -124,10 +142,12 @@ export function createCardCanvasSession(
       return;
     }
 
-    options.callbacks.onSettled({
-      revision,
-      resourceStatus,
-      fieldErrors: cloneFieldErrors(scene.fieldErrors),
+    safeNotify(() => {
+      options.callbacks.onSettled({
+        revision,
+        resourceStatus,
+        fieldErrors: cloneFieldErrors(scene.fieldErrors),
+      });
     });
   };
 
@@ -151,23 +171,23 @@ export function createCardCanvasSession(
     avatarSource: () => documentAvatarSource(liveDocument ?? request.document),
     onDocumentPatch: (patch, source) => {
       if (source !== "canvas" || !canEmitBindingEvent(binding)) return;
-      if (!options.callbacks.interactionEnabled()) return;
-      options.callbacks.onDocumentPatch(patch, "canvas");
+      if (!interactionEnabled()) return;
+      safeNotify(() => options.callbacks.onDocumentPatch(patch, "canvas"));
     },
     onSelectionChange: (selection) => {
       if (!canEmitBindingEvent(binding)) return;
-      if (!options.callbacks.interactionEnabled()) return;
-      options.callbacks.onSelectionChange(selection);
+      if (!interactionEnabled()) return;
+      safeNotify(() => options.callbacks.onSelectionChange(selection));
     },
     onFieldValidation: (field, error) => {
       if (!canEmitBindingEvent(binding)) return;
-      if (!options.callbacks.interactionEnabled()) return;
-      options.callbacks.onFieldValidation(field, error);
+      if (!interactionEnabled()) return;
+      safeNotify(() => options.callbacks.onFieldValidation(field, error));
     },
     onEditCancel: (field, restoredValue) => {
       if (!canEmitBindingEvent(binding)) return;
-      if (!options.callbacks.interactionEnabled()) return;
-      options.callbacks.onEditCancel(field, restoredValue);
+      if (!interactionEnabled()) return;
+      safeNotify(() => options.callbacks.onEditCancel(field, restoredValue));
     },
   });
 
@@ -277,9 +297,9 @@ export function createCardCanvasSession(
 
     if (!isCurrent(request.revision)) return;
 
-    if (result.field !== null) {
-      replaceFieldError(scene, result.field, result.error);
-      options.callbacks.onFieldValidation(result.field, result.error);
+    const appliedField = result.field;
+    if (appliedField !== null) {
+      replaceFieldError(scene, appliedField, result.error);
     }
 
     liveDocument = request.document;
@@ -287,6 +307,13 @@ export function createCardCanvasSession(
     if (activeBinding?.scene === scene) {
       activeBinding.revision = request.revision;
     }
+
+    if (appliedField !== null) {
+      safeNotify(() =>
+        options.callbacks.onFieldValidation(appliedField, result.error),
+      );
+    }
+    if (!isCurrent(request.revision)) return;
     emitSettled(request.revision, scene);
   };
 
