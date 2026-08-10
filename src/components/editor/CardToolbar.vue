@@ -29,10 +29,8 @@ function resetAll() {
   >
     <div class="card-body toolbar-layout">
       <div class="toolbar-heading">
-        <h1 class="card-title toolbar-title">会员证编辑器</h1>
-        <p class="toolbar-helper text-base-content/60">
-          直接编辑预览，同屏调整
-        </p>
+        <h1 class="card-title toolbar-title">买够会员证编辑器</h1>
+        <p class="toolbar-helper text-base-content/60">It's MyGO!!!!!</p>
       </div>
 
       <div class="join toolbar-controls" role="toolbar" aria-label="编辑器工具">
