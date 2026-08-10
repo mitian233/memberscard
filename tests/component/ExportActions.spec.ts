@@ -44,6 +44,9 @@ describe("ExportActions", () => {
       statusMessage: "正在复制图片…",
     });
     const section = wrapper.get("section");
+    expect(section.classes()).toEqual(
+      expect.arrayContaining(["card", "border", "bg-base-100"]),
+    );
     const heading = section.get("h2");
     expect(heading.text()).toBe("导出图片");
     expect(section.attributes("aria-labelledby")).toBe(
@@ -54,6 +57,8 @@ describe("ExportActions", () => {
       "正在复制…",
       "保存 PNG",
     ]);
+    expect(actionButtons(wrapper)[0].classes()).toContain("btn-outline");
+    expect(actionButtons(wrapper)[1].classes()).toContain("btn-primary");
     const status = wrapper.get('[role="status"]');
     expect(status.attributes("aria-live")).toBe("polite");
     expect(status.attributes("aria-atomic")).toBe("true");

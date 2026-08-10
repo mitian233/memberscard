@@ -36,10 +36,14 @@ describe("CardToolbar", () => {
     const wrapper = mountToolbar({ templateId: "legacy", dirty: true });
 
     const header = wrapper.get("header");
+    expect(header.classes()).toEqual(
+      expect.arrayContaining(["card", "border", "bg-base-100"]),
+    );
     expect(header.get("h1").text()).toBe("会员证编辑器");
     expect(header.text()).toContain("直接编辑预览，同屏调整");
 
     const toolbar = header.get('[role="toolbar"]');
+    expect(toolbar.classes()).toContain("join");
     expect(toolbar.attributes("aria-label")).toBe("编辑器工具");
     expect(templateButtons(wrapper).map((button) => button.text())).toEqual([
       "新版",
@@ -55,6 +59,7 @@ describe("CardToolbar", () => {
         button.attributes("aria-pressed"),
       ),
     ).toEqual(["false", "true"]);
+    expect(wrapper.get('[role="status"]').classes()).toContain("badge");
     expect(wrapper.get('[role="status"]').text()).toBe("已修改");
     expect(wrapper.get("button[data-reset-all]").text()).toBe("全部重置");
   });

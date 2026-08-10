@@ -24,66 +24,80 @@ function resetAll() {
 </script>
 
 <template>
-  <header class="card-toolbar">
-    <div class="toolbar-heading">
-      <h1 class="toolbar-title">会员证编辑器</h1>
-      <p class="toolbar-helper">直接编辑预览，同屏调整</p>
-    </div>
+  <header
+    class="card card-toolbar border border-base-300 bg-base-100 text-base-content shadow-sm"
+  >
+    <div class="card-body toolbar-layout">
+      <div class="toolbar-heading">
+        <h1 class="card-title toolbar-title">会员证编辑器</h1>
+        <p class="toolbar-helper text-base-content/60">
+          直接编辑预览，同屏调整
+        </p>
+      </div>
 
-    <div class="toolbar-controls" role="toolbar" aria-label="编辑器工具">
-      <button
-        class="toolbar-control toolbar-template"
-        type="button"
-        data-template="current"
-        :aria-pressed="props.templateId === 'current'"
-        :disabled="props.busy"
-        @click="selectTemplate('current')"
-      >
-        新版
-      </button>
-      <button
-        class="toolbar-control toolbar-template"
-        type="button"
-        data-template="legacy"
-        :aria-pressed="props.templateId === 'legacy'"
-        :disabled="props.busy"
-        @click="selectTemplate('legacy')"
-      >
-        经典版
-      </button>
-      <button
-        class="toolbar-control toolbar-reset"
-        type="button"
-        data-reset-all
-        :disabled="props.busy"
-        @click="resetAll"
-      >
-        全部重置
-      </button>
-    </div>
+      <div class="join toolbar-controls" role="toolbar" aria-label="编辑器工具">
+        <button
+          class="btn join-item toolbar-control toolbar-template"
+          :class="props.templateId === 'current' ? 'btn-primary' : 'btn-ghost'"
+          type="button"
+          data-template="current"
+          :aria-pressed="props.templateId === 'current'"
+          :disabled="props.busy"
+          @click="selectTemplate('current')"
+        >
+          新版
+        </button>
+        <button
+          class="btn join-item toolbar-control toolbar-template"
+          :class="props.templateId === 'legacy' ? 'btn-primary' : 'btn-ghost'"
+          type="button"
+          data-template="legacy"
+          :aria-pressed="props.templateId === 'legacy'"
+          :disabled="props.busy"
+          @click="selectTemplate('legacy')"
+        >
+          经典版
+        </button>
+        <button
+          class="btn btn-ghost join-item toolbar-control toolbar-reset"
+          type="button"
+          data-reset-all
+          :disabled="props.busy"
+          @click="resetAll"
+        >
+          全部重置
+        </button>
+      </div>
 
-    <p class="toolbar-status" role="status">
-      {{ props.dirty ? "已修改" : "默认状态" }}
-    </p>
+      <p
+        class="badge toolbar-status"
+        :class="props.dirty ? 'badge-primary' : 'badge-ghost'"
+        role="status"
+      >
+        {{ props.dirty ? "已修改" : "默认状态" }}
+      </p>
+    </div>
   </header>
 </template>
 
 <style scoped>
 .card-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem;
-  border: 1px solid #d8dee8;
-  border-radius: 0.75rem;
-  background: #f7f9fc;
-  color: #1f2937;
+  border-radius: 1rem;
+}
+
+.toolbar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.125rem;
 }
 
 .toolbar-heading {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.125rem;
+  min-width: 0;
 }
 
 .toolbar-title,
@@ -93,13 +107,12 @@ function resetAll() {
 }
 
 .toolbar-title {
-  font-size: 1.25rem;
-  line-height: 1.35;
+  font-size: 1.125rem;
+  line-height: 1.3;
 }
 
 .toolbar-helper,
 .toolbar-status {
-  color: #526174;
   font-size: 0.875rem;
   line-height: 1.5;
 }
@@ -107,26 +120,13 @@ function resetAll() {
 .toolbar-controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  justify-self: end;
+  overflow: hidden;
 }
 
 .toolbar-control {
   box-sizing: border-box;
   min-height: 44px;
-  border: 1px solid #c4ccd8;
-  border-radius: 0.5rem;
-  background: #fff;
-  color: #334155;
-  cursor: pointer;
-  font: inherit;
-  padding: 0.5rem 0.875rem;
-}
-
-.toolbar-template[aria-pressed="true"] {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-weight: 700;
 }
 
 .toolbar-control:disabled {
@@ -135,7 +135,34 @@ function resetAll() {
 }
 
 .toolbar-control:focus-visible {
-  outline: 3px solid #2563eb;
+  outline: 3px solid hsl(var(--p));
   outline-offset: 2px;
+}
+
+.toolbar-status {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+@media (max-width: 48rem) {
+  .toolbar-layout {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+  }
+
+  .toolbar-controls {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+  }
+
+  .toolbar-control {
+    flex: 1 1 0;
+  }
+
+  .toolbar-status {
+    grid-column: 2;
+    grid-row: 1;
+  }
 }
 </style>
