@@ -189,7 +189,7 @@ onBeforeUnmount(() => {
     <button
       v-show="!expanded"
       ref="triggerRef"
-      class="full-preview-trigger"
+      class="btn btn-sm btn-ghost full-preview-trigger"
       type="button"
       @click="openPreview"
     >
@@ -206,13 +206,17 @@ onBeforeUnmount(() => {
       @keydown="handleKeydown"
       @click="handleBackdropClick"
     >
-      <section class="full-preview-panel">
+      <section
+        class="card full-preview-panel bg-base-100 text-base-content shadow-xl"
+      >
         <header class="full-preview-header">
-          <h2 :id="titleId" class="full-preview-title">完整会员证预览</h2>
+          <h2 :id="titleId" class="card-title full-preview-title">
+            完整会员证预览
+          </h2>
           <button
             v-if="expanded"
             ref="closeRef"
-            class="full-preview-close"
+            class="btn btn-sm btn-ghost full-preview-close"
             type="button"
             aria-label="关闭完整预览"
             @click="closePreview"
@@ -241,17 +245,11 @@ onBeforeUnmount(() => {
   min-height: 44px;
   align-items: center;
   justify-content: center;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.625rem;
-  background: #fff;
-  color: #0f172a;
-  cursor: pointer;
 }
 
 .full-preview-trigger:focus-visible,
 .full-preview-close:focus-visible {
-  outline: 3px solid #2563eb;
+  outline: 3px solid hsl(var(--p));
   outline-offset: 3px;
 }
 
@@ -264,7 +262,7 @@ onBeforeUnmount(() => {
   padding: max(1rem, env(safe-area-inset-top))
     max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
     max(1rem, env(safe-area-inset-left));
-  background: #0f172a;
+  background: hsl(var(--n));
 }
 
 .full-preview-overlay {
@@ -282,8 +280,6 @@ onBeforeUnmount(() => {
   overflow: auto;
   padding: 1rem;
   border-radius: 1rem;
-  background: #fff;
-  color: #0f172a;
 }
 
 .full-preview-header {
@@ -303,12 +299,6 @@ onBeforeUnmount(() => {
   min-width: 44px;
   min-height: 44px;
   flex: 0 0 auto;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.625rem;
-  background: #fff;
-  color: #0f172a;
-  cursor: pointer;
 }
 
 .full-preview-content {

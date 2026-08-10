@@ -205,7 +205,7 @@ onBeforeUnmount(() => {
   >
     <section
       ref="panelRef"
-      class="editor-dialog-panel"
+      class="card editor-dialog-panel bg-base-100 text-base-content shadow-xl"
       role="dialog"
       aria-modal="true"
       :aria-labelledby="titleId"
@@ -213,10 +213,12 @@ onBeforeUnmount(() => {
       @keydown="handleKeydown"
     >
       <header class="editor-dialog-header">
-        <h2 :id="titleId" class="editor-dialog-title">{{ props.title }}</h2>
+        <h2 :id="titleId" class="card-title editor-dialog-title">
+          {{ props.title }}
+        </h2>
         <button
           ref="closeButtonRef"
-          class="editor-dialog-close"
+          class="btn btn-sm btn-ghost editor-dialog-close"
           type="button"
           :aria-label="props.closeLabel"
           @click="requestClose"
@@ -260,10 +262,7 @@ onBeforeUnmount(() => {
   padding: max(1rem, env(safe-area-inset-top))
     max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
     max(1rem, env(safe-area-inset-left));
-  border: 1px solid rgb(148 163 184 / 0.4);
   border-radius: 1rem;
-  background: #fff;
-  color: #0f172a;
   box-shadow: 0 1.25rem 3rem rgb(15 23 42 / 0.24);
 }
 
@@ -284,11 +283,6 @@ onBeforeUnmount(() => {
   min-width: 44px;
   min-height: 44px;
   flex: 0 0 auto;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.625rem;
-  background: #fff;
-  color: #0f172a;
-  cursor: pointer;
 }
 
 .editor-dialog-body {
@@ -311,7 +305,7 @@ onBeforeUnmount(() => {
 
 .editor-dialog-close:focus-visible,
 .editor-dialog-panel :deep(:focus-visible) {
-  outline: 3px solid #2563eb;
+  outline: 3px solid hsl(var(--p));
   outline-offset: 3px;
 }
 </style>

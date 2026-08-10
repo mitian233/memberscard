@@ -317,7 +317,7 @@ watch(
 
 <template>
   <section
-    class="fabric-card-canvas"
+    class="fabric-card-canvas rounded-box bg-base-100 text-base-content"
     :aria-labelledby="headingId"
     :aria-busy="busy ? 'true' : undefined"
     :aria-disabled="props.disabled ? 'true' : 'false'"
@@ -326,7 +326,8 @@ watch(
     <div ref="hostRef" class="preview-host">
       <canvas ref="lowerCanvasRef" class="preview-canvas" aria-hidden="true" />
       <div v-if="busy" class="loading-overlay" aria-live="polite">
-        正在加载预览…
+        <span class="loading loading-spinner loading-md" aria-hidden="true" />
+        <span>正在加载预览…</span>
       </div>
     </div>
     <p :id="summaryId" class="visually-hidden" data-card-summary>
@@ -342,7 +343,6 @@ watch(
   min-width: 0;
   overflow: auto;
   padding: 1rem;
-  color: #1f2937;
 }
 
 .preview-heading {
@@ -361,7 +361,7 @@ watch(
   justify-content: center;
   overflow: hidden;
   border-radius: 0.75rem;
-  background: #eef2f7;
+  background: hsl(var(--b2));
 }
 
 .preview-canvas {
@@ -382,10 +382,12 @@ watch(
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
+  place-content: center;
+  justify-items: center;
+  gap: 0.75rem;
   pointer-events: none;
-  background: rgb(255 255 255 / 75%);
-  color: #334155;
+  background: hsl(var(--b1) / 85%);
+  color: hsl(var(--bc));
   font-weight: 600;
 }
 

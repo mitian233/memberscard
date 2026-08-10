@@ -332,6 +332,9 @@ describe("CardEditorWorkspace", () => {
         dirty: true,
       });
       const main = wrapper.get("main");
+      expect(main.classes()).toEqual(
+        expect.arrayContaining(["bg-neutral", "text-neutral-content"]),
+      );
       expect(wrapper.findAll("main")).toHaveLength(1);
       expect(main.attributes("aria-label")).toBe("会员证编辑器");
       const order = [...main.element.children].map(
@@ -378,6 +381,9 @@ describe("CardEditorWorkspace", () => {
         fieldErrors,
       );
       expect(child(wrapper, "exports").props("canExport")).toBe(true);
+      expect(main.get(".editor-preview-region").classes()).toContain(
+        "rounded-box",
+      );
     }
   });
 
@@ -516,6 +522,14 @@ describe("CardEditorWorkspace", () => {
     for (const testCase of cases) {
       const wrapper = mountWorkspace({ resourceStatus: testCase.status });
       const resourceRegion = wrapper.get("[data-resource-status]");
+      expect(
+        resourceRegion.classes(
+          testCase.status.state === "error" ||
+            testCase.status.state === "degraded"
+            ? "alert"
+            : "badge",
+        ),
+      ).toBe(true);
       expect(resourceRegion.attributes("role")).toBe("status");
       expect(resourceRegion.attributes("aria-live")).toBe("polite");
       expect(resourceRegion.text()).toBe(testCase.message);

@@ -46,12 +46,16 @@ describe("EditorDialog", () => {
     await wrapper.setProps({ open: true });
     await nextTick();
     const dialog = wrapper.get('[role="dialog"]');
+    expect(dialog.classes()).toEqual(
+      expect.arrayContaining(["card", "bg-base-100"]),
+    );
     const heading = dialog.get("h2");
     expect(dialog.attributes("aria-modal")).toBe("true");
     expect(dialog.attributes("aria-labelledby")).toBe(heading.attributes("id"));
     expect(heading.text()).toBe("会员证预览");
     expect(dialog.get("button").attributes("type")).toBe("button");
     expect(dialog.get("button").attributes("aria-label")).toBe("关闭");
+    expect(dialog.get("button").classes()).toContain("btn");
     expect(dialog.get(".editor-dialog-body").text()).toContain("");
 
     await wrapper.setProps({ title: "编辑会员证", closeLabel: "返回" });

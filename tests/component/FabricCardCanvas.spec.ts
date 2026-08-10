@@ -248,6 +248,9 @@ describe("FabricCardCanvas", () => {
     await nextTick();
 
     const section = wrapper.get("section.fabric-card-canvas");
+    expect(section.classes()).toEqual(
+      expect.arrayContaining(["rounded-box", "bg-base-100"]),
+    );
     const heading = section.get("h2");
     expect(heading.text()).toBe("会员证预览");
     expect(section.attributes("aria-labelledby")).toBe(

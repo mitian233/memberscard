@@ -111,6 +111,7 @@ describe("FullPreviewShell", () => {
     const wrapper = mountShell();
     expect(wrapper.findAll(".full-preview-trigger")).toHaveLength(1);
     expect(wrapper.get(".full-preview-trigger").text()).toBe("完整预览");
+    expect(wrapper.get(".full-preview-trigger").classes()).toContain("btn");
     const content = wrapper.get(".full-preview-content");
     expect(wrapper.findAll(".full-preview-content")).toHaveLength(1);
     expect(content.text()).toContain("预览内容");
@@ -134,6 +135,9 @@ describe("FullPreviewShell", () => {
     await flushPromises();
     const dialog = wrapper.get('[role="dialog"]');
     const heading = dialog.get("h2");
+    expect(dialog.get(".full-preview-panel").classes()).toEqual(
+      expect.arrayContaining(["card", "bg-base-100"]),
+    );
     expect(dialog.attributes("aria-modal")).toBe("true");
     expect(dialog.attributes("aria-labelledby")).toBe(heading.attributes("id"));
     expect(heading.text()).toBe("完整会员证预览");

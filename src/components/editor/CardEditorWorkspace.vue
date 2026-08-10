@@ -89,6 +89,20 @@ const resourceRecovery = computed(() => {
     : "请刷新页面后重试。";
 });
 
+const resourceStatusClasses = computed(() => {
+  switch (props.resourceStatus.state) {
+    case "loading":
+      return ["badge", "badge-info", "badge-outline"];
+    case "ready":
+      return ["badge", "badge-success", "badge-outline"];
+    case "degraded":
+      return ["alert", "alert-warning"];
+    case "error":
+      return ["alert", "alert-error"];
+  }
+  return [];
+});
+
 function forwardCanvasChange(patch: CardPatch, source: "canvas"): void {
   emit("canvas-change", patch, source);
 }
@@ -110,7 +124,10 @@ function forwardFieldUpdate(field: CardField, value: string): void {
 </script>
 
 <template>
-  <main class="card-editor-workspace" aria-label="会员证编辑器">
+  <main
+    class="card-editor-workspace bg-neutral text-neutral-content"
+    aria-label="会员证编辑器"
+  >
     <div class="editor-toolbar-wrapper">
       <CardToolbar
         :template-id="props.template.id"
@@ -122,7 +139,10 @@ function forwardFieldUpdate(field: CardField, value: string): void {
     </div>
 
     <div class="editor-workspace-grid">
-      <section class="editor-preview-region" aria-label="会员证预览">
+      <section
+        class="editor-preview-region rounded-box border border-neutral-content/10 bg-neutral-focus shadow-inner"
+        aria-label="会员证预览"
+      >
         <FullPreviewShell>
           <FabricCardCanvas
             :document="props.document"
@@ -159,6 +179,10 @@ function forwardFieldUpdate(field: CardField, value: string): void {
         <div class="editor-status-stack">
           <p
             class="editor-upload-status"
+            :class="{
+              alert: props.uploadMessage,
+              'alert-info': props.uploadMessage,
+            }"
             data-upload-status
             role="status"
             aria-live="polite"
@@ -168,6 +192,7 @@ function forwardFieldUpdate(field: CardField, value: string): void {
           </p>
           <p
             class="editor-resource-status"
+            :class="resourceStatusClasses"
             data-resource-status
             role="status"
             aria-live="polite"
@@ -205,10 +230,10 @@ function forwardFieldUpdate(field: CardField, value: string): void {
   box-sizing: border-box;
   width: 100%;
   max-width: 90rem;
+  min-height: 100vh;
   min-width: 0;
   margin: 0 auto;
   padding: 1rem clamp(1rem, 4vw, 2.5rem) 2rem;
-  color: #1f2937;
 }
 
 .editor-toolbar-wrapper {
@@ -228,6 +253,7 @@ function forwardFieldUpdate(field: CardField, value: string): void {
   top: 1rem;
   min-width: 0;
   align-self: start;
+  padding: 0.75rem;
 }
 
 .editor-controls {
@@ -247,14 +273,14 @@ function forwardFieldUpdate(field: CardField, value: string): void {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.375rem;
+  align-items: flex-start;
+  gap: 0.5rem;
 }
 
 .editor-upload-status,
 .editor-resource-status,
 .editor-resource-recovery {
   margin: 0;
-  color: #334155;
   font-size: 0.875rem;
   line-height: 1.5;
 }
@@ -264,7 +290,13 @@ function forwardFieldUpdate(field: CardField, value: string): void {
 }
 
 .editor-resource-recovery {
-  color: #7f1d1d;
+  color: hsl(var(--ec));
+}
+
+.editor-upload-status.alert,
+.editor-resource-status.alert {
+  width: 100%;
+  padding: 0.75rem;
 }
 
 .editor-export-wrapper {
