@@ -207,9 +207,12 @@ onBeforeUnmount(() => {
       @click="handleBackdropClick"
     >
       <section
-        class="card full-preview-panel bg-base-100 text-base-content shadow-xl"
+        class="full-preview-panel"
+        :class="
+          expanded ? 'card bg-base-100 text-base-content shadow-xl' : undefined
+        "
       >
-        <header class="full-preview-header">
+        <header v-show="expanded" class="full-preview-header">
           <h2 :id="titleId" class="card-title full-preview-title">
             完整会员证预览
           </h2>
@@ -235,6 +238,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .full-preview-shell {
   box-sizing: border-box;
+  display: grid;
   min-width: 0;
   width: 100%;
 }
@@ -245,6 +249,8 @@ onBeforeUnmount(() => {
   min-height: 44px;
   align-items: center;
   justify-content: center;
+  justify-self: end;
+  margin-bottom: 0.5rem;
 }
 
 .full-preview-trigger:focus-visible,
@@ -308,6 +314,16 @@ onBeforeUnmount(() => {
   max-width: 100%;
   margin-top: 1rem;
   overflow-x: auto;
+}
+
+.full-preview-shell:not(.is-expanded) .full-preview-panel {
+  width: 100%;
+  padding: 0;
+  overflow: visible;
+}
+
+.full-preview-shell:not(.is-expanded) .full-preview-content {
+  margin-top: 0;
 }
 
 @media (max-width: 64rem) {

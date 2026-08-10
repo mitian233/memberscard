@@ -126,6 +126,7 @@ function forwardFieldUpdate(field: CardField, value: string): void {
 <template>
   <main
     class="card-editor-workspace bg-neutral text-neutral-content"
+    data-theme="light"
     aria-label="会员证编辑器"
   >
     <div class="editor-toolbar-wrapper">

@@ -112,6 +112,8 @@ describe("FullPreviewShell", () => {
     expect(wrapper.findAll(".full-preview-trigger")).toHaveLength(1);
     expect(wrapper.get(".full-preview-trigger").text()).toBe("完整预览");
     expect(wrapper.get(".full-preview-trigger").classes()).toContain("btn");
+    expect(wrapper.get(".full-preview-header").isVisible()).toBe(false);
+    expect(wrapper.get(".full-preview-panel").classes()).not.toContain("card");
     const content = wrapper.get(".full-preview-content");
     expect(wrapper.findAll(".full-preview-content")).toHaveLength(1);
     expect(content.text()).toContain("预览内容");

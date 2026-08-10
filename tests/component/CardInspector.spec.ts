@@ -249,13 +249,13 @@ describe("CardInspector", () => {
     expect(ranges[0].attributes()).toMatchObject({
       min: "-960",
       max: "960",
-      step: "1",
+      step: "0.01",
       value: "-120",
     });
     expect(ranges[1].attributes()).toMatchObject({
       min: "-960",
       max: "960",
-      step: "1",
+      step: "0.01",
       value: "45",
     });
     expect(ranges[2].attributes()).toMatchObject({

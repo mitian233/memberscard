@@ -13,7 +13,7 @@
 - Do not change member-card templates, Fabric coordinates, canvas event contracts, export behavior, router semantics, or public component props/emits.
 - Use the installed DaisyUI dependency; do not add another UI or icon package.
 - Keep `CardEditorView` a composition surface and preserve props-down/events-up data flow.
-- `left` and `top` sliders use `min=-960`, `max=960`, `step=1`; `scale` uses `min=0.1`, `max=3`, `step=0.01`.
+- `left` and `top` sliders use `min=-960`, `max=960`, `step=0.01`; `scale` uses `min=0.1`, `max=3`, `step=0.01`.
 - Existing geometry remains the only cover-clamp authority.
 - All controls remain at least 44×44 CSS pixels, keyboard accessible, and usable at 390×844 and 1440×1000.
 - Run the Impeccable detector exactly once after all UI files are finished.
@@ -34,12 +34,14 @@
 ### Task 1: DaisyUI command and export hierarchy
 
 **Files:**
+
 - Modify: `tests/component/CardToolbar.spec.ts`
 - Modify: `tests/component/ExportActions.spec.ts`
 - Modify: `src/components/editor/CardToolbar.vue`
 - Modify: `src/components/editor/ExportActions.vue`
 
 **Interfaces:**
+
 - Consumes: existing `CardToolbar` and `ExportActions` props/emits unchanged.
 - Produces: DaisyUI button-group, badge, card, loading, and primary-action presentation contracts.
 
@@ -53,8 +55,12 @@ expect(wrapper.get("header").classes()).toEqual(
 );
 expect(wrapper.get('[role="toolbar"]').classes()).toContain("join");
 expect(wrapper.get('[role="status"]').classes()).toContain("badge");
-expect(wrapper.get('button[data-action="copy"]').classes()).toContain("btn-outline");
-expect(wrapper.get('button[data-action="export"]').classes()).toContain("btn-primary");
+expect(wrapper.get('button[data-action="copy"]').classes()).toContain(
+  "btn-outline",
+);
+expect(wrapper.get('button[data-action="export"]').classes()).toContain(
+  "btn-primary",
+);
 ```
 
 Keep the existing exact event, busy guard, accessible name, and 44px assertions.
@@ -105,10 +111,12 @@ git commit -m "refactor: align editor actions with DaisyUI"
 ### Task 2: DaisyUI inspector and avatar sliders
 
 **Files:**
+
 - Modify: `tests/component/CardInspector.spec.ts`
 - Modify: `src/components/editor/CardInspector.vue`
 
 **Interfaces:**
+
 - Consumes: `document.avatar`, `activeGroup`, `disabled`, `fieldErrors`, and existing emits.
 - Produces: three `input[type=range][data-avatar-range]` controls paired with the existing numeric inputs, both emitting fresh complete `AvatarTransform` objects through `update-avatar`.
 
@@ -123,10 +131,20 @@ expect(ranges.map((range) => range.attributes("data-avatar-range"))).toEqual([
   "top",
   "scale",
 ]);
-expect(ranges[0].attributes()).toMatchObject({ min: "-960", max: "960", step: "1" });
-expect(ranges[2].attributes()).toMatchObject({ min: "0.1", max: "3", step: "0.01" });
+expect(ranges[0].attributes()).toMatchObject({
+  min: "-960",
+  max: "960",
+  step: "0.01",
+});
+expect(ranges[2].attributes()).toMatchObject({
+  min: "0.1",
+  max: "3",
+  step: "0.01",
+});
 expect(ranges.every((range) => range.classes().includes("range"))).toBe(true);
-expect(wrapper.get('input[data-field="name"]').classes()).toContain("input-bordered");
+expect(wrapper.get('input[data-field="name"]').classes()).toContain(
+  "input-bordered",
+);
 ```
 
 Set a range value, assert one immutable `update-avatar` payload, then update props and assert range and number values reflect the clamped prop value. Verify both controls are disabled when `disabled=true`.
@@ -183,6 +201,7 @@ git commit -m "refactor: add DaisyUI avatar controls"
 ### Task 3: Studio workspace and preview surfaces
 
 **Files:**
+
 - Modify: `tests/component/CardEditorWorkspace.spec.ts`
 - Modify: `tests/component/FullPreviewShell.spec.ts`
 - Modify: `tests/component/FabricCardCanvas.spec.ts`
@@ -193,6 +212,7 @@ git commit -m "refactor: add DaisyUI avatar controls"
 - Modify: `src/components/editor/EditorDialog.vue`
 
 **Interfaces:**
+
 - Consumes: unchanged child props/emits and persistent full-preview slot identity.
 - Produces: DaisyUI studio shell with compact status surfaces, preview stage, and visually aligned dialogs.
 
@@ -202,7 +222,9 @@ Assert real behavior and semantic classes:
 
 ```ts
 expect(wrapper.get("main").classes()).toContain("bg-base-300");
-expect(wrapper.get(".editor-preview-region").classes()).toContain("rounded-box");
+expect(wrapper.get(".editor-preview-region").classes()).toContain(
+  "rounded-box",
+);
 expect(wrapper.get("[data-resource-status]").classes()).toContain("badge");
 expect(shell.get(".full-preview-trigger").classes()).toContain("btn");
 expect(canvas.get(".fabric-card-canvas").classes()).toContain("bg-base-100");
@@ -256,9 +278,11 @@ git commit -m "refactor: refine DaisyUI editor workspace"
 ### Task 4: Browser validation and bounded visual correction
 
 **Files:**
+
 - Modify only files already in Tasks 1–3 if browser evidence identifies defects.
 
 **Interfaces:**
+
 - Consumes: completed DaisyUI editor at `/editor/current` and `/editor/legacy`.
 - Produces: validated desktop/mobile screenshots and one bounded correction pass.
 

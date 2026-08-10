@@ -57,8 +57,8 @@ const avatarFieldLabels: Record<AvatarNumberField, string> = {
   scale: "缩放",
 };
 const avatarControlConfig = {
-  left: { min: -960, max: 960, step: 1 },
-  top: { min: -960, max: 960, step: 1 },
+  left: { min: -960, max: 960, step: 0.01 },
+  top: { min: -960, max: 960, step: 0.01 },
   scale: { min: 0.1, max: 3, step: 0.01 },
 } as const satisfies Record<
   AvatarNumberField,
