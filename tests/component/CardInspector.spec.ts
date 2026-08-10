@@ -98,6 +98,15 @@ describe("CardInspector", () => {
     expect(
       wrapper.find('[role="tabpanel"]').attributes("aria-labelledby"),
     ).toBe(tabs[0].attributes("id"));
+    expect(root.classes()).toEqual(
+      expect.arrayContaining(["card", "border", "bg-base-100"]),
+    );
+    expect(tabs.every((candidate) => candidate.classes("tab"))).toBe(true);
+    expect(
+      wrapper
+        .findAll("input[data-field]")
+        .every((input) => input.classes().includes("input-bordered")),
+    ).toBe(true);
   });
 
   it("only renders fields that have both template definitions and document values", () => {
@@ -221,6 +230,74 @@ describe("CardInspector", () => {
     expect(wrapper.emitted("update-avatar")).toHaveLength(1);
   });
 
+  it("pairs every avatar number with a DaisyUI range and syncs clamped prop values", async () => {
+    const avatar: AvatarTransform = {
+      src: "avatar.png",
+      left: -120,
+      top: 45,
+      scale: 0.58,
+    };
+    const document = { ...createCardDocument(currentCardTemplate), avatar };
+    const wrapper = mountInspector(currentCardTemplate, {
+      activeGroup: "avatar",
+      document,
+    });
+    const ranges = wrapper.findAll('input[type="range"][data-avatar-range]');
+    expect(
+      ranges.map((range) => range.attributes("data-avatar-range")),
+    ).toEqual(["left", "top", "scale"]);
+    expect(ranges[0].attributes()).toMatchObject({
+      min: "-960",
+      max: "960",
+      step: "1",
+      value: "-120",
+    });
+    expect(ranges[1].attributes()).toMatchObject({
+      min: "-960",
+      max: "960",
+      step: "1",
+      value: "45",
+    });
+    expect(ranges[2].attributes()).toMatchObject({
+      min: "0.1",
+      max: "3",
+      step: "0.01",
+      value: "0.58",
+    });
+    expect(
+      ranges.every(
+        (range) =>
+          range.classes().includes("range") &&
+          range.classes().includes("range-primary"),
+      ),
+    ).toBe(true);
+
+    await ranges[0].setValue("-88");
+    const emitted = wrapper.emitted("update-avatar")?.[0]?.[0];
+    expect(emitted).toEqual({
+      src: "avatar.png",
+      left: -88,
+      top: 45,
+      scale: 0.58,
+    });
+    expect(emitted).not.toBe(avatar);
+
+    const clampedDocument = {
+      ...document,
+      avatar: { ...avatar, left: -64, scale: 0.72 },
+    };
+    await wrapper.setProps({ document: clampedDocument });
+    expect(
+      wrapper.get('input[data-avatar-range="left"]').element,
+    ).toHaveProperty("value", "-64");
+    expect(
+      wrapper.get('input[data-avatar-field="left"]').element,
+    ).toHaveProperty("value", "-64");
+    expect(
+      wrapper.get('input[data-avatar-range="scale"]').element,
+    ).toHaveProperty("value", "0.72");
+  });
+
   it("emits the avatar reset action", async () => {
     const wrapper = mountInspector(currentCardTemplate, {
       activeGroup: "avatar",
@@ -285,6 +362,7 @@ describe("CardInspector", () => {
     expect(
       controls.every((control) => control.classes("inspector-control")),
     ).toBe(true);
+    expect(wrapper.findAll('input[type="range"]')).toHaveLength(3);
 
     const left = wrapper.get('input[data-avatar-field="left"]');
     left.element.value = "12";
