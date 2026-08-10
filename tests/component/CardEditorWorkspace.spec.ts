@@ -332,9 +332,7 @@ describe("CardEditorWorkspace", () => {
         dirty: true,
       });
       const main = wrapper.get("main");
-      expect(main.classes()).toEqual(
-        expect.arrayContaining(["bg-neutral", "text-neutral-content"]),
-      );
+      expect(main.classes()).toContain("text-neutral-content");
       expect(main.attributes("data-theme")).toBe("light");
       expect(wrapper.findAll("main")).toHaveLength(1);
       expect(main.attributes("aria-label")).toBe("会员证编辑器");

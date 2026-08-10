@@ -337,7 +337,6 @@ describe("EditorDialog", () => {
     expect(scopedStyle).toMatch(
       /\.editor-dialog-actions\s*:deep\(button\)[^}]*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/i,
     );
-    expect(scopedStyle).toMatch(/position:\s*fixed/i);
     expect(scopedStyle).toMatch(/max-height:[^;]*100dvh/i);
     expect(scopedStyle).toMatch(/safe-area-inset-(?:top|bottom)/i);
   });

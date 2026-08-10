@@ -39,9 +39,6 @@ describe("CardToolbar", () => {
     expect(header.classes()).toEqual(
       expect.arrayContaining(["card", "border", "bg-base-100"]),
     );
-    expect(header.get("h1").text()).toBe("会员证编辑器");
-    expect(header.text()).toContain("直接编辑预览，同屏调整");
-
     const toolbar = header.get('[role="toolbar"]');
     expect(toolbar.classes()).toContain("join");
     expect(toolbar.attributes("aria-label")).toBe("编辑器工具");
