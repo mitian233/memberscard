@@ -152,6 +152,17 @@ describe("CardInspector", () => {
       alert.attributes("id"),
     );
     expect(alert.text()).toContain("姓名过长");
+    expect(inspectorSource).toMatch(
+      /\.field-error\s*\{[^}]*color:\s*#b42318[^}]*font-weight:\s*600/,
+    );
+    expect(inspectorSource).not.toMatch(
+      /\.field-error\s*\{[^}]*border-left\s*:/,
+    );
+    expect(inspectorSource).not.toMatch(
+      /\.field-error\s*\{[^}]*padding-left\s*:/,
+    );
+    expect(alert.attributes("role")).toBe("alert");
+    expect(alert.attributes("data-field-error")).toBe("name");
 
     const birthdayInput = wrapper.get('input[data-field="birthday"]');
     expect(birthdayInput.attributes("aria-invalid")).not.toBe("true");

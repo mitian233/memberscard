@@ -125,7 +125,7 @@ describe("typed Fabric leaf objects", () => {
     });
   });
 
-  it("configures a fixed image and absolute rounded clip", () => {
+  it("scales a fixed image from its natural size and keeps the absolute clip", () => {
     const image = createImage();
     const definition: CardStaticObjectDefinition = {
       role: "static",
@@ -145,8 +145,10 @@ describe("typed Fabric leaf objects", () => {
     expect(image).toMatchObject({
       left: 10,
       top: 20,
-      width: 300,
-      height: 120,
+      width: 100,
+      height: 80,
+      scaleX: 3,
+      scaleY: 1.5,
       originX: "left",
       originY: "top",
       selectable: false,

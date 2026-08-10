@@ -207,14 +207,14 @@ function configureStaticImage(
   loadedImage: FabricImage,
 ): FabricImage {
   const radius = definition.radius ?? 0;
+  const scaleX = definition.width / loadedImage.width;
+  const scaleY = definition.height / loadedImage.height;
   loadedImage.set({
     ...createStaticObjectOptions(definition.id),
     left: definition.left,
     top: definition.top,
-    width: definition.width,
-    height: definition.height,
-    scaleX: 1,
-    scaleY: 1,
+    scaleX,
+    scaleY,
     originX: "left",
     originY: "top",
     clipPath:

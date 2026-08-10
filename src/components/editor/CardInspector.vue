@@ -444,11 +444,10 @@ function resetAvatar() {
 }
 
 .field-error {
-  border-left: 3px solid #b42318;
   color: #b42318;
   font-size: 0.8125rem;
+  font-weight: 600;
   line-height: 1.4;
-  padding-left: 0.5rem;
 }
 
 .inspector-control:focus-visible {

@@ -6,6 +6,7 @@ import CardInspector, {
 import CardToolbar from "@/components/editor/CardToolbar.vue";
 import ExportActions from "@/components/editor/ExportActions.vue";
 import FabricCardCanvas from "@/components/editor/FabricCardCanvas.vue";
+import FullPreviewShell from "@/components/editor/FullPreviewShell.vue";
 import type {
   CanvasSettledPayload,
   CanvasSyncRequest,
@@ -122,20 +123,22 @@ function forwardFieldUpdate(field: CardField, value: string): void {
 
     <div class="editor-workspace-grid">
       <section class="editor-preview-region" aria-label="会员证预览">
-        <FabricCardCanvas
-          :document="props.document"
-          :template="props.template"
-          :sync-request="props.syncRequest"
-          :controller="props.canvasController"
-          :disabled="props.busy"
-          :loading="props.resourceStatus.state === 'loading'"
-          @ready="emit('canvas-ready', $event)"
-          @resource-error="emit('resource-error', $event)"
-          @change="forwardCanvasChange"
-          @selection-change="emit('selection-change', $event)"
-          @edit-cancel="forwardEditCancel"
-          @validation-error="forwardValidationError"
-        />
+        <FullPreviewShell>
+          <FabricCardCanvas
+            :document="props.document"
+            :template="props.template"
+            :sync-request="props.syncRequest"
+            :controller="props.canvasController"
+            :disabled="props.busy"
+            :loading="props.resourceStatus.state === 'loading'"
+            @ready="emit('canvas-ready', $event)"
+            @resource-error="emit('resource-error', $event)"
+            @change="forwardCanvasChange"
+            @selection-change="emit('selection-change', $event)"
+            @edit-cancel="forwardEditCancel"
+            @validation-error="forwardValidationError"
+          />
+        </FullPreviewShell>
       </section>
 
       <aside class="editor-controls" aria-label="编辑控制">

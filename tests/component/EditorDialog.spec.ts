@@ -156,27 +156,51 @@ describe("EditorDialog", () => {
     expect(wrapper.emitted("close")).toEqual([[]]);
   });
 
-  it("excludes hidden ancestors from focus candidates", async () => {
-    const wrapper = mountDialog(
-      { open: true },
-      {
-        default:
-          '<div aria-hidden="true"><button class="hidden-target">Hidden</button></div><button class="visible-target">Visible</button>',
-      },
-    );
-    await nextTick();
-    const close = wrapper.get(".editor-dialog-close").element;
-    const visible = wrapper.get(".visible-target").element;
-    close.focus();
-    const tab = new KeyboardEvent("keydown", {
-      key: "Tab",
-      bubbles: true,
-      cancelable: true,
-    });
-    wrapper.get('[role="dialog"]').element.dispatchEvent(tab);
-    expect(tab.defaultPrevented).toBe(true);
-    expect(document.activeElement).toBe(visible);
-  });
+  it.each([
+    {
+      label: "hidden attribute",
+      ancestor:
+        '<div hidden><button class="hidden-target">Hidden</button></div>',
+    },
+    {
+      label: "aria-hidden attribute",
+      ancestor:
+        '<div aria-hidden="true"><button class="hidden-target">Hidden</button></div>',
+    },
+    {
+      label: "display none",
+      ancestor:
+        '<div style="display: none"><button class="hidden-target">Hidden</button></div>',
+    },
+    {
+      label: "visibility hidden",
+      ancestor:
+        '<div style="visibility: hidden"><button class="hidden-target">Hidden</button></div>',
+    },
+  ])(
+    "excludes $label ancestors from focus candidates",
+    async ({ ancestor }) => {
+      const wrapper = mountDialog(
+        { open: true },
+        {
+          default: `${ancestor}<button class="visible-target">Visible</button>`,
+        },
+      );
+      await nextTick();
+      const close = wrapper.get(".editor-dialog-close").element;
+      const visible = wrapper.get(".visible-target").element;
+      close.focus();
+      const tab = new KeyboardEvent("keydown", {
+        key: "Tab",
+        bubbles: true,
+        cancelable: true,
+      });
+      wrapper.get('[role="dialog"]').element.dispatchEvent(tab);
+      expect(tab.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(visible);
+      await wrapper.unmount();
+    },
+  );
 
   it("closes only for backdrop clicks and supports the no-target focus fallback", async () => {
     const wrapper = mountDialog({ open: true }, { default: "Body" });
@@ -294,6 +318,12 @@ describe("EditorDialog", () => {
     )?.[1];
     expect(scopedStyle).toBeTruthy();
     expect(scopedStyle).not.toMatch(/position\s*:\s*sticky/i);
+    expect(scopedStyle).toMatch(
+      /\.editor-dialog-backdrop\s*\{[^}]*box-sizing:\s*border-box[^}]*overflow:\s*auto/i,
+    );
+    expect(scopedStyle).toMatch(
+      /\.editor-dialog-panel\s*\{[^}]*box-sizing:\s*border-box[^}]*max-height:\s*min\(\s*100%\s*,\s*calc\(\s*100dvh\s*-\s*2rem\s*-\s*env\(safe-area-inset-top\)\s*-\s*env\(safe-area-inset-bottom\)\s*\)\s*\)/i,
+    );
     expect(scopedStyle).toMatch(
       /\.editor-dialog-close\s*\{[^}]*min-(?:width|height):\s*44px[^}]*min-(?:width|height):\s*44px/i,
     );
